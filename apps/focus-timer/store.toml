@@ -1,0 +1,5 @@
+name = "Focus"
+summary = "An adjustable focus timer: crown for minutes, one tap to start, three buzzes when it ends"
+version = "0.1.0"
+author = "CMF Tech Community"
+published = false
