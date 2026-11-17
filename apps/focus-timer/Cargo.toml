@@ -1,4 +1,15 @@
 [package]
 name = "focus-timer"
-version = "0.1.0"
-dependencies = ["cmf-wp2-app", "wp2-core"]
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+cmf-wp2-app.workspace = true
+
+[dev-dependencies]
+wp2-core.workspace = true
+
+[[bin]]
+name = "focus-timer"
+bench = false
