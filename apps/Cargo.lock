@@ -15,6 +15,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "metronome"
+version = "0.1.0"
+dependencies = [
+ "cmf-wp2-app",
+]
+
+[[package]]
 name = "orbit"
 version = "0.1.0"
 dependencies = [
