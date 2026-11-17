@@ -3,6 +3,5 @@ name = "Vela Nav"
 summary = "Turn-by-turn directions from the Vela maps app on your phone: next turn, route map, arrival time"
 version = "0.1.0"
 author = "arunk140"
-# hidden until the Android companion has a release to install: the app shows nothing without it
-published = false
+published = true
 screenshots = ["shots/driving.png", "shots/turn.png", "shots/arrived.png"]
