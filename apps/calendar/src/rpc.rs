@@ -56,14 +56,17 @@ pub struct Event {
 impl Event {
     pub const EMPTY: Event = Event { day: 0, start: 0, duration: 0, flags: 0, color: 0, title: [0; TITLE_MAX], len: 0 };
 
+    #[cfg(test)]
     pub fn all_day(&self) -> bool {
         self.flags & 1 != 0
     }
 
+    #[cfg(test)]
     pub fn tentative(&self) -> bool {
         self.flags & 2 != 0
     }
 
+    #[cfg(test)] // the watch shows no titles; the cache keeps them as the phone sent them
     /// Empty when the phone hides titles (flags bit 2, the default) or the event has none.
     pub fn title(&self) -> &str {
         fit(&self.title[..self.len as usize], TITLE_MAX)
