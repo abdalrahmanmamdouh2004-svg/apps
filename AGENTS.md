@@ -39,6 +39,7 @@ One package can offer several of these; ask which the owner wants before buildin
 | Widget card | `app_features!(WIDGET)`; `api.widget(title, value)` stores text (23 B / 39 B, `\n` = 2nd line) the stub draws on a 344×166 card left of the face. A NAND write: on change, never per frame. A tap opens the app | 2026-11-15 |
 | Page | `app_features!(PAGE)`: the app is a whole screen next to the face. `api.on_page()` is `true` there; no `BUTTON` (the app never exits itself), swipe away = `PAUSE`, back = `RESUME` | 2026-11-15 |
 | Phone or Mac link | `send`/`recv`, `MESSAGE`: section "Apps that talk to a phone" below | 2026-11-13 for K |
+| Phone services | calendar and more from FMC Companion over `R1` messages. **Draft, not implemented**: "FMC Companion" below | — |
 
 The user adds a widget or a page on the watch: long press on the app's row in Apps → "Add widget" / "Add page".
 Details: `app-guide.md`, "Widget" and "Page". A "full-screen widget" means a page.
@@ -90,9 +91,35 @@ bind, no "Paired" popup, Nothing X keeps working. What exists today:
 
 - The watch needs the stub with K (`fw-wp2.bin` from 2026-11-13 or later, by OTA) and a loader from 2026-11-13 or
   later. Stock firmware has no channel at all.
-- Host implementations: Python (`wp2apps.channel.Channel(channel_key=True)`, Mac) and an iOS one in a private app.
-  There is no Android host yet; `connectGatt` next to Nothing X is untested.
+- Host implementations: Python (`wp2apps.channel.Channel(channel_key=True)`, Mac) and FMC Companion (below), iOS
+  and Android. The Android one (a second GATT client next to Nothing X) is not yet tried on a real watch.
 - A Mac and a phone can't both be connected: the watch takes one central.
 
 An app that needs a companion says so under `## Requirements` in `store.md`, naming the companion and where to get
 it.
+
+### FMC Companion
+
+The phone app for the watch and fmc.tools, MIT, iOS (SwiftUI) and Android (Compose):
+[fmctools/companion](https://github.com/fmctools/companion). What it does today: reads the App Loader state over K
+next to Nothing X, browses the FMC catalog, installs watch faces (Nothing X closed first), has a demo mode. It only
+reads the watch; it does not talk to apps yet.
+
+**Phone services for apps: a draft, not implemented, not released.** Don't build an app that depends on them, and
+don't tell anyone they work. The spec, and the only source of truth for byte layouts, is
+[`docs/miniapp-rpc.md`](https://github.com/fmctools/companion/blob/main/docs/miniapp-rpc.md) in the companion repo.
+In short:
+
+- The app declares the caps it uses (`uses`) in a manifest on its fmc.tools record; the user grants them at install.
+- RPC rides on app messages: every message starts with `R1`, then `Q` (request, watch → phone) or `A` (reply).
+  Other prefixes stay the app's own. The watch pulls; a closed app gets nothing.
+- Statuses: `OK`, `BAD_REQUEST`, `DENIED` (no grant or OS permission off), `UNAVAILABLE`. No answer: show the cached
+  copy, retry after 3 s.
+
+| Method | Id | Cap | Returns |
+|---|---|---|---|
+| `caps` | `0x01` | none | the method ids this app may call now |
+| `calendar.events` | `0x10` | `calendar.read` | events for 1–7 days from today: day, start minute, duration, flags, colour, title |
+
+Calendar titles are off by default (K is readable by anyone in range): the phone sends time, length and colour, and
+a per-app switch in the companion turns titles on. Locations, attendees and notes are never sent.
