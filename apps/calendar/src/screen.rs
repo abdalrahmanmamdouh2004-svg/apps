@@ -251,18 +251,56 @@ pub struct MonthView {
     pub title: Obj,
     pub prev: Obj,
     pub next: Obj,
+    pub foot: Obj,
     pub shown: Month,
+    /// The days, under the title: [`month_turn`] swaps it for another month's.
+    pub grid: Obj,
     /// The grid's cells, as `date::grid(shown)`: a tap on one opens its day.
     pub cells: [Obj; CELLS],
+}
+
+/// `shown`'s days in a hidden box over the grid area (the caller shows it), a cell per day.
+fn grid(b: &mut Batch, flush: &mut Flush, r: Obj, shown: Month, today: Option<Day>, k: &Marks)
+    -> Result<(Obj, [Obj; CELLS]), LvError> {
+    room(b, flush)?;
+    let g = b.create(Class::Obj, r)?;
+    b.size(g, 7 * COL_W, 6 * ROW_H)?;
+    bare(b, g)?;
+    b.flags(g, &[Flag::Hidden], &[Flag::Clickable])?;
+    b.align(g, Align::TopLeft, GRID_X as i16, GRID_Y as i16)?;
+    let mut cells = [ROOT; CELLS];
+    for (i, d) in date::grid(shown).iter().enumerate().take(CELLS) {
+        room(b, flush)?;
+        let (x, y) = ((i % 7) as i32 * COL_W + 2, (i / 7) as i32 * ROW_H + 2);
+        cells[i] = cell(b, g, *d, d.month != shown, today == Some(*d), k.get(*d), x, y)?;
+    }
+    Ok((g, cells))
+}
+
+fn month_title(shown: Month) -> Line {
+    let mut t = Line::new();
+    let _ = write!(t, "{} {}", shown.name(), shown.year);
+    t
+}
+
+/// Another month on the month screen without leaving it: the new grid is built hidden next to the old one, then one
+/// batch drops the old grid, shows the new one and renames the title, so the screen never goes black in between.
+pub fn month_turn(b: &mut Batch, flush: &mut Flush, v: MonthView, shown: Month, today: Option<Day>, k: &Marks)
+    -> Result<MonthView, LvError> {
+    let (g, cells) = grid(b, flush, v.root, shown, today, k)?;
+    flush(b)?;
+    b.text(v.title, month_title(shown).as_str())?;
+    b.text(v.foot, month_summary(today, k).as_str())?;
+    b.del(v.grid)?;
+    b.flags(g, &[], &[Flag::Hidden])?;
+    Ok(MonthView { shown, grid: g, cells, ..v })
 }
 
 pub fn month_view(b: &mut Batch, flush: &mut Flush, shown: Month, today: Option<Day>, k: &Marks)
     -> Result<MonthView, LvError> {
     room(b, flush)?;
     let r = root(b)?;
-    let mut t = Line::new();
-    let _ = write!(t, "{} {}", shown.name(), shown.year);
-    let title = label(b, r, t.as_str(), TITLE_W, 0, TITLE_Y)?;
+    let title = label(b, r, month_title(shown).as_str(), TITLE_W, 0, TITLE_Y)?;
     b.style(title, Prop::TextColor, 0, ACCENT)?;
     b.style(title, Prop::TextFont, 0, F24 as i32)?;
     b.flags(title, &[Flag::Clickable], &[])?;
@@ -278,18 +316,14 @@ pub fn month_view(b: &mut Batch, flush: &mut Flush, shown: Month, today: Option<
         b.text(l, w)?;
         b.align(l, Align::TopLeft, (GRID_X + i as i32 * COL_W) as i16, WEEKDAYS_Y)?;
     }
-    let mut cells = [ROOT; CELLS];
-    for (i, d) in date::grid(shown).iter().enumerate().take(CELLS) {
-        room(b, flush)?;
-        let (x, y) = (GRID_X + (i % 7) as i32 * COL_W + 2, GRID_Y + (i / 7) as i32 * ROW_H + 2);
-        cells[i] = cell(b, r, *d, d.month != shown, today == Some(*d), k.get(*d), x, y)?;
-    }
+    let (grid, cells) = grid(b, flush, r, shown, today, k)?;
+    b.flags(grid, &[], &[Flag::Hidden])?;
     room(b, flush)?;
     let foot = label(b, r, month_summary(today, k).as_str(), 300, 0, FOOTER_Y)?;
     b.style(foot, Prop::TextColor, 0, GREY)?;
     b.style(foot, Prop::TextFont, 0, F24 as i32)?;
     b.flags(r, &[], &[Flag::Hidden])?;
-    Ok(MonthView { root: r, title, prev, next, shown, cells })
+    Ok(MonthView { root: r, title, prev, next, foot, shown, grid, cells })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -506,6 +540,13 @@ mod tests {
             let (w, _) = run(&mut t, &mut b, |b, f| month_view(b, f, m(2026, 12), Some(today), &k));
             assert_eq!(w.root, v.root);
             assert_eq!((w.title, w.prev, w.next), (v.title, v.prev, v.next));
+            // turning months in place: two grids at once stay inside the object budget, and the old one is freed
+            let mut v = w;
+            for mo in [11, 10, 9, 11] {
+                let (n, _) = run(&mut t, &mut b, |b, f| month_turn(b, f, v, m(2026, mo), Some(today), &k));
+                assert_eq!((n.root, n.title), (v.root, v.title));
+                v = n;
+            }
         }
     }
 
