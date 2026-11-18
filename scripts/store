@@ -35,7 +35,9 @@ IMAGES = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 
 
 def apps():
-    return sorted(p.parent.name for p in APPS.glob("*/store.toml"))
+    """Every folder in apps/: one without a store.toml fails `listing`, so CI can't skip it (it is still a member
+    of the cargo workspace, and a broken one breaks every app's build)."""
+    return sorted(p.name for p in APPS.iterdir() if p.is_dir() and not p.name.startswith("."))
 
 
 def version(text):
