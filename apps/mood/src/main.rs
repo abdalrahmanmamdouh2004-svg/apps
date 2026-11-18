@@ -2,6 +2,7 @@
 //! the crown flips between the months of the current year. A whole year of levels lives in the app's 4 KiB blob.
 #![cfg_attr(target_os = "none", no_std, no_main)]
 
+#[cfg_attr(not(target_os = "none"), allow(dead_code))]
 mod model;
 mod screen;
 

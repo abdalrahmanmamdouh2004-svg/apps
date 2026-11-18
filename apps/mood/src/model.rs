@@ -70,6 +70,7 @@ impl Year {
         self.days[i]
     }
 
+    #[cfg(test)]
     pub fn set(&mut self, month: u8, day: u8, level: u8) {
         if let Some(i) = day_index(self.year, month, day) {
             self.days[i] = level % LEVELS;
