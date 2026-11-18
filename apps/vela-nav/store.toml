@@ -3,5 +3,4 @@ name = "Vela Nav"
 summary = "Turn-by-turn directions from the Vela maps app on your phone: next turn, route map, arrival time"
 version = "1.0.0"
 author = "arunk140"
-published = true
 screenshots = ["shots/driving.png", "shots/turn.png", "shots/arrived.png"]
