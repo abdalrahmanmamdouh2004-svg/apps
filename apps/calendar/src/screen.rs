@@ -339,6 +339,8 @@ pub struct WidgetView {
 }
 
 const EVENT_H: i32 = 96;
+/// One line of the 24 px font.
+const NAME_H: i32 = 30;
 const DAY_TOP: i32 = 110;
 // the page: the week under the title, the events under the week
 const W_WEEK_Y: i32 = GRID_Y;
@@ -392,7 +394,8 @@ fn event_cards<'e>(b: &mut Batch, flush: &mut Flush, r: Obj, top: i32, events: i
         b.text(time, span_text(e).as_str())?;
         b.align(time, Align::TopLeft, 68, 10)?;
         let name = b.create(Class::Label, c)?;
-        b.size(name, stock::ROW_W - 68 - 48, CONTENT)?;
+        // one line: with CONTENT height a long title wraps out of the card instead of ending in "..."
+        b.size(name, stock::ROW_W - 68 - 48, NAME_H)?;
         b.long_mode(name, LongMode::Dot)?;
         b.style(name, Prop::TextAlign, 0, 1)?; // LV_TEXT_ALIGN_LEFT: the root centres
         b.style(name, Prop::TextFont, 0, F24 as i32)?;
