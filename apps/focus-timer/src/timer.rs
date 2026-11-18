@@ -152,10 +152,6 @@ impl Buzz {
         self.active = false;
     }
 
-    pub fn active(&self) -> bool {
-        self.active
-    }
-
     /// The duty to apply now, or `None` when nothing is due. `Some(0)` switches the motor off.
     pub fn poll(&mut self, now: u32) -> Option<u16> {
         if !self.active || (now.wrapping_sub(self.next_at) as i32) < 0 {
@@ -269,7 +265,7 @@ mod tests {
         assert_eq!(b.poll(1000), Some(BUZZ_DUTY)); // third
         assert_eq!(b.poll(1250), Some(0));
         assert_eq!(b.poll(1500), Some(0)); // final off, not active any more
-        assert!(!b.active());
+        assert!(!b.active);
         assert_eq!(b.poll(2000), None);
     }
 

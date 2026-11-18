@@ -6,7 +6,9 @@
 //! are pure code with host tests (`src/timer.rs`).
 #![cfg_attr(target_os = "none", no_std, no_main)]
 
+#[cfg_attr(not(target_os = "none"), allow(dead_code))]
 mod screen;
+#[cfg_attr(not(target_os = "none"), allow(dead_code))]
 mod timer;
 
 #[cfg(not(target_os = "none"))]

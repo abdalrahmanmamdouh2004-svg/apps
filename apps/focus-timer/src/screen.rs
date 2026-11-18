@@ -33,7 +33,6 @@ const TRACK: i32 = 0x2124;
 const PRESSED_FILL: i32 = 0xC618;
 
 pub struct Screen {
-    pub page: Obj,
     pub arc: Obj,
     pub time: Obj,
     pub hint: Obj,
@@ -103,7 +102,7 @@ pub fn build(b: &mut Batch) -> Result<Screen, LvError> {
     b.style(button_label, Prop::TextColor, 0, stock::BLACK)?;
     b.text(button_label, "Start")?;
 
-    Ok(Screen { page, arc, time, hint, button, button_label })
+    Ok(Screen { arc, time, hint, button, button_label })
 }
 
 /// Everything that changes with the phase: countdown, ring, hint, button word.
