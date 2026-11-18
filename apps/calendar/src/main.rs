@@ -1,9 +1,10 @@
 //! calendar: a month grid with a dot per calendar on the days that have events, and today in a widget.
 //!
-//! - From the Apps menu: the month view. The crown or `<` `>` change the month, a tap on the title goes back to
-//!   today's month, a tap on a day with events lists them (a tap on that title comes back), BUTTON exits.
-//! - As the page next to the watch face (`app_features!(PAGE)`): the widget view (today, this week, today's count).
-//!   A tap opens the month view, a tap on its title comes back.
+//! - From the Apps menu: the month view. `<` `>` change the month (in place, `screen::month_turn`), a tap on the
+//!   title goes back to today's month, a tap on a day with events lists them; a tap on that title or BUTTON (the
+//!   right swipe, `own_back`) comes back. BUTTON on the month exits.
+//! - As the page next to the watch face (`app_features!(PAGE)`): the week and a day's events. A tap on the date
+//!   opens the month view, a tap on its title comes back.
 //! - The card left of the watch face (`app_features!(WIDGET)`): "Sun 15 Nov" and today's count.
 //!
 //! Events for the coming week come from FMC Companion on the phone (`calendar.events`, `rpc.rs`); the watch keeps
@@ -32,7 +33,7 @@ mod device {
     use crate::model::{BLOB_MAX, Got, Model, wall_min};
     use crate::screen::{self, DayView, MonthView, WidgetView};
     use cmf_wp2_app::lv::{Batch, Lv, LvError};
-    use cmf_wp2_app::{Api, BUTTON, CROWN, LV, MESSAGE, MSG_MAX, PAUSE, RESUME};
+    use cmf_wp2_app::{Api, BUTTON, LV, MESSAGE, MSG_MAX, PAUSE, RESUME};
 
     cmf_wp2_app::entry!(main);
     cmf_wp2_app::app_icon!();
@@ -125,6 +126,18 @@ mod device {
         fn show(&mut self, want: Want) {
             let lv = self.lv;
             let mut flush = |b: &mut Batch| b.submit(&lv);
+            if let (Want::Month(m), View::Month(v)) = (&want, self.view) {
+                if v.root != cmf_wp2_app::lv::ROOT {
+                    // the same screen, another month: swapped in place, no blink
+                    let r = screen::month_turn(&mut self.b, &mut flush, v, *m, self.today, &self.marks);
+                    if let Ok(v) = r {
+                        self.view = View::Month(v);
+                        set(SHOWN, v.shown.year as i32 * 100 + v.shown.month as i32);
+                    }
+                    set(RC, code(r.and_then(|_| self.b.submit(&lv))));
+                    return;
+                }
+            }
             let old = self.view.root();
             let (m, w, today) = (&*self.model, wall(self.api).unwrap_or(0), self.today);
             let r = screen::leave(&mut self.b, old).and_then(|_| match want {
@@ -247,12 +260,15 @@ mod device {
             title: cmf_wp2_app::lv::ROOT,
             prev: cmf_wp2_app::lv::ROOT,
             next: cmf_wp2_app::lv::ROOT,
+            foot: cmf_wp2_app::lv::ROOT,
             shown: FALLBACK,
+            grid: cmf_wp2_app::lv::ROOT,
             cells: [cmf_wp2_app::lv::ROOT; crate::date::CELLS],
         });
         let mut app = App { api, lv, b, model, marks: Marks::empty(), view: placeholder, today };
         app.remark();
         let on_page = api.on_page();
+        api.own_back(true); // the right swipe on a day goes back to its month, not out (no-op before ABI 1.3)
         app.show(match (on_page, today) {
             (true, Some(d)) => Want::Widget(d),
             (_, d) => Want::Month(d.map_or(FALLBACK, |d| d.month)),
@@ -270,7 +286,10 @@ mod device {
             }
             let Some(e) = e else { continue };
             match e.kind {
-                BUTTON => break,
+                BUTTON => match app.view {
+                    View::Day(v) => app.show(Want::Month(v.day.month)),
+                    _ => break,
+                },
                 PAUSE => paused = true,
                 RESUME => {
                     paused = false;
@@ -280,11 +299,6 @@ mod device {
                 MESSAGE => {
                     while let Some(m) = api.recv(&mut msg) {
                         app.message(m);
-                    }
-                }
-                CROWN if !paused => {
-                    if let View::Month(v) = app.view {
-                        app.show(Want::Month(v.shown.add(if e.delta > 0 { 1 } else { -1 })));
                     }
                 }
                 LV if e.y == CLICKED && !paused => {
