@@ -12,6 +12,8 @@ An app runs on a watch with the patched firmware and the App Loader, both on the
 | [`vibration-lab`](apps/vibration-lab) | A test bench for the vibration motor. The template for new apps |
 | [`ui-gallery`](apps/ui-gallery) | The stock firmware's widgets as an app can use them |
 | [`orbit`](apps/orbit) | Round-screen Pong: turn the crown to keep the ball inside the ring |
+| [`vela-nav`](apps/vela-nav) | Turn-by-turn directions from the Vela maps app on an Android phone |
+| [`calendar`](apps/calendar) | A month with the phone's events as dots, a page next to the face and a widget card (needs FMC Companion) |
 
 ## Make your own app
 
@@ -54,6 +56,16 @@ make run APP=my-app ADDRESS=<watch>     # the same on your own watch (address fr
 
 Everything you install on your watch is at your own risk.
 
+### Talking to a phone
+
+An app can exchange short messages with a phone or a Mac (app-guide.md, section 4). On the phone side,
+[FMC Companion](https://github.com/fmctools/companion) (iOS and Android) works next to Nothing X and answers apps'
+requests for phone services: the calendar, location, weather, an HTTPS GET, and notifications on Android. The user
+allows each one per app in the companion. The byte layouts are in
+[docs/miniapp-rpc.md](https://github.com/fmctools/companion/blob/main/docs/miniapp-rpc.md); what an app can count on
+is in [docs/companion.md](docs/companion.md); [`apps/calendar`](apps/calendar) uses the calendar. Never send personal
+data over the channel: anyone nearby can read it.
+
 ## Publish it
 
 Add two files next to `Cargo.toml`:
@@ -65,7 +77,6 @@ name = "My App"                       # the store's title, at most 60 characters
 summary = "What it does, in one line" # at most 140
 version = "0.1.0"                     # MAJOR.MINOR.PATCH, each part at most 999
 author = "Your Name"                  # at most 60
-published = true                      # false: uploaded, but hidden from the store
 screenshots = ["shots/main.png"]      # optional, at most 8; png, jpeg, webp or svg, 2 MB each
 ```
 
@@ -81,9 +92,11 @@ Only through a pull request that raises the app's `version`:
 1. **Pull request.** CI fails if an app's files changed but its `version` didn't go up from `main` (a version never
    goes down; a new app can start anywhere). It builds and tests every app the PR touches and attaches the packages
    to the run as the `store-apps` artifact; try yours before asking for a review.
-2. **Merge to `main`.** CI publishes exactly the apps whose `version` went up (or that are new). Nothing else
-   publishes: not a rebuild, not an SDK bump, not a `store.md` edit without a new version.
-3. **The store** refuses a version lower than the one it has, and a new package under the same version.
+2. **Merge to `main`.** CI publishes every app whose `version` is above the store's (or that the store hasn't got),
+   so one a failed run missed goes out with the next merge. Nothing else publishes: not a rebuild, not an SDK bump,
+   not a `store.md` edit without a new version.
+3. **The store** refuses a version lower than the one it has, and a new package under the same version. A new app
+   is listed right away; hiding or showing one is done in the store's admin, not here.
 
 The `.wp2app` header's version number is derived from `version` (`major << 20 | minor << 10 | patch`). Everything in `store.toml`, `store.md`, the icon and screenshots is the listing: a
 field or file removed here is removed from the store with the next version.
