@@ -3,6 +3,15 @@
 version = 4
 
 [[package]]
+name = "calendar"
+version = "0.1.0"
+dependencies = [
+ "cmf-wp2-app",
+ "cmf-wp2-ui",
+ "wp2-core",
+]
+
+[[package]]
 name = "cmf-wp2-app"
 version = "0.1.0"
 
@@ -23,6 +32,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "metronome"
+version = "0.1.0"
+dependencies = [
+ "cmf-wp2-app",
+]
+
+[[package]]
 name = "orbit"
 version = "0.1.0"
 dependencies = [
@@ -39,12 +55,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "twenty48"
+version = "0.1.0"
+dependencies = [
+ "cmf-wp2-app",
+]
+
+[[package]]
 name = "ui-gallery"
 version = "0.1.0"
 dependencies = [
  "cmf-wp2-app",
  "cmf-wp2-ui",
  "wp2-core",
+]
+
+[[package]]
+name = "vela-nav"
+version = "0.1.0"
+dependencies = [
+ "cmf-wp2-app",
+ "cmf-wp2-ui",
 ]
 
 [[package]]
