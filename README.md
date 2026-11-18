@@ -13,6 +13,7 @@ An app runs on a watch with the patched firmware and the App Loader, both on the
 | [`ui-gallery`](apps/ui-gallery) | The stock firmware's widgets as an app can use them |
 | [`orbit`](apps/orbit) | Round-screen Pong: turn the crown to keep the ball inside the ring |
 | [`vela-nav`](apps/vela-nav) | Turn-by-turn directions from the Vela maps app on an Android phone |
+| [`calendar`](apps/calendar) | A month with the phone's events as dots, a page next to the face and a widget card (needs FMC Companion) |
 
 ## Make your own app
 
@@ -54,6 +55,15 @@ make run APP=my-app ADDRESS=<watch>     # the same on your own watch (address fr
 ```
 
 Everything you install on your watch is at your own risk.
+
+### Talking to a phone
+
+An app can exchange short messages with a phone or a Mac (app-guide.md, section 4). On the phone side,
+[FMC Companion](https://github.com/fmctools/companion) (iOS and Android) works next to Nothing X: today it reads the
+App Loader, browses the FMC catalog and installs watch faces. Phone services for apps (the phone's calendar first)
+are a **draft that isn't implemented or released**: read
+[docs/miniapp-rpc.md](https://github.com/fmctools/companion/blob/main/docs/miniapp-rpc.md) to follow the design, but
+don't ship an app that relies on it. Never send personal data over the channel: anyone nearby can read it.
 
 ## Publish it
 
