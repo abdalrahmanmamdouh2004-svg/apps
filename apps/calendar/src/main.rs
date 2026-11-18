@@ -1,7 +1,7 @@
 //! calendar: a month grid with a dot per calendar on the days that have events, and today in a widget.
 //!
 //! - From the Apps menu: the month view. The crown or `<` `>` change the month, a tap on the title goes back to
-//!   today's month, BUTTON exits.
+//!   today's month, a tap on a day with events lists them (a tap on that title comes back), BUTTON exits.
 //! - As the page next to the watch face (`app_features!(PAGE)`): the widget view (today, this week, today's count).
 //!   A tap opens the month view, a tap on its title comes back.
 //! - The card left of the watch face (`app_features!(WIDGET)`): "Sun 15 Nov" and today's count.
@@ -30,7 +30,7 @@ mod device {
     use crate::date::{Day, Month};
     use crate::marks::Marks;
     use crate::model::{BLOB_MAX, Got, Model, wall_min};
-    use crate::screen::{self, MonthView, WidgetView};
+    use crate::screen::{self, DayView, MonthView, WidgetView};
     use cmf_wp2_app::lv::{Batch, Lv, LvError};
     use cmf_wp2_app::{Api, BUTTON, CROWN, LV, MESSAGE, MSG_MAX, PAUSE, RESUME};
 
@@ -84,6 +84,7 @@ mod device {
     enum View {
         Month(MonthView),
         Widget(WidgetView),
+        Day(DayView),
     }
 
     impl View {
@@ -91,6 +92,7 @@ mod device {
             match self {
                 View::Month(v) => v.root,
                 View::Widget(v) => v.root,
+                View::Day(v) => v.root,
             }
         }
     }
@@ -98,6 +100,7 @@ mod device {
     enum Want {
         Month(Month),
         Widget(Day),
+        Day(Day),
     }
 
     struct App {
@@ -121,6 +124,12 @@ mod device {
                     screen::month_view(&mut self.b, &mut flush, m, self.today, &self.marks).map(View::Month)
                 }
                 Want::Widget(d) => screen::widget_view(&mut self.b, &mut flush, d, &self.marks).map(View::Widget),
+                Want::Day(d) => {
+                    let (m, w) = (&*self.model, wall(self.api).unwrap_or(0));
+                    let off = crate::marks::day_no(d) - self.today.map_or(0, crate::marks::day_no);
+                    let events = (0..m.n).filter(move |&i| m.span(i, w).0 == off).map(move |i| &m.events[i]);
+                    screen::day_view(&mut self.b, &mut flush, d, events).map(View::Day)
+                }
             });
             let r = match r {
                 Ok(v) => {
@@ -136,6 +145,7 @@ mod device {
                     set(SHOWN, v.shown.year as i32 * 100 + v.shown.month as i32);
                 }
                 View::Widget(_) => set(VIEW, 2),
+                View::Day(_) => set(VIEW, 3),
             }
         }
 
@@ -143,6 +153,7 @@ mod device {
         fn refresh(&mut self) {
             let want = match self.view {
                 View::Month(v) => Want::Month(v.shown),
+                View::Day(v) => Want::Day(v.day),
                 View::Widget(_) => match self.today {
                     Some(d) => Want::Widget(d),
                     None => Want::Month(FALLBACK),
@@ -229,6 +240,7 @@ mod device {
             prev: cmf_wp2_app::lv::ROOT,
             next: cmf_wp2_app::lv::ROOT,
             shown: FALLBACK,
+            cells: [cmf_wp2_app::lv::ROOT; crate::date::CELLS],
         });
         let mut app = App { api, lv, b, model, marks: Marks::empty(), view: placeholder, today };
         app.remark();
@@ -276,6 +288,12 @@ mod device {
                             (true, Some(d)) => Want::Widget(d),
                             (_, d) => Want::Month(d.map_or(v.shown, |d| d.month)),
                         }),
+                        View::Month(v) => {
+                            if let Some(i) = v.cells.iter().position(|c| c.0 == h) {
+                                app.show(Want::Day(crate::date::grid(v.shown)[i]));
+                            }
+                        }
+                        View::Day(v) if h == v.title.0 => app.show(Want::Month(v.day.month)),
                         View::Widget(w) if h == w.root.0 => app.show(Want::Month(w.today.month)),
                         _ => {}
                     }

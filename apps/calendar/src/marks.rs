@@ -10,7 +10,7 @@ pub const DOTS: usize = 3;
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
 pub struct Mark {
     pub count: u8,
-    /// 0xRRGGBB of each calendar with an event that day, `dots` of them.
+    /// RGB565 (as LVGL styles take it) of each calendar with an event that day, `dots` of them.
     pub colours: [i32; DOTS],
     pub dots: u8,
 }
@@ -23,14 +23,8 @@ pub struct Marks {
     pub note: Option<&'static str>,
 }
 
-fn day_no(d: Day) -> i32 {
+pub fn day_no(d: Day) -> i32 {
     days(d.month.year as i32, d.month.month as u32, d.day as u32)
-}
-
-/// RGB565 to 0xRRGGBB.
-pub fn rgb(c: u16) -> i32 {
-    let (r, g, b) = ((c >> 11) as i32 & 31, (c >> 5) as i32 & 63, c as i32 & 31);
-    (r * 255 / 31) << 16 | (g * 255 / 63) << 8 | b * 255 / 31
 }
 
 impl Marks {
@@ -54,13 +48,18 @@ impl Marks {
             let Some(d) = usize::try_from(day).ok().filter(|&d| d < DAYS) else { continue };
             let mk = &mut k.days[d];
             mk.count = mk.count.saturating_add(1);
-            let c = rgb(m.events[i].color);
+            let c = m.events[i].color as i32;
             if (mk.dots as usize) < DOTS && !mk.colours[..mk.dots as usize].contains(&c) {
                 mk.colours[mk.dots as usize] = c;
                 mk.dots += 1;
             }
         }
         k
+    }
+
+    /// Whether `d` is in the phone's window (its events are known).
+    pub fn known(&self, d: Day) -> bool {
+        self.note.is_none() && (0..DAYS as i32).contains(&(day_no(d) - self.from))
     }
 
     /// The day's mark; empty outside the phone's window.
@@ -106,8 +105,8 @@ mod tests {
         }
         let k = Marks::build(&m, today, wall);
         assert_eq!(k.note, None);
-        assert_eq!(k.get(today), Mark { count: 3, colours: [0xFF0000, 0x00FF00, 0], dots: 2 });
-        assert_eq!(k.get(Day { month: nov, day: 19 }).colours[0], 0x0000FF);
+        assert_eq!(k.get(today), Mark { count: 3, colours: [0xF800, 0x07E0, 0], dots: 2 });
+        assert_eq!(k.get(Day { month: nov, day: 19 }).colours[0], 0x001F);
         // outside the window: before today, past 7 days
         assert_eq!(k.get(Day { month: nov, day: 16 }), Mark::default());
         assert_eq!(k.get(Day { month: nov, day: 26 }), Mark::default());

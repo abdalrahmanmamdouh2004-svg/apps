@@ -4,4 +4,4 @@ summary = "A month with your phone's events as dots, a page next to the watch fa
 version = "0.2.0"
 author = "Egor Kolesnikov"
 published = true
-screenshots = ["shots/month.png", "shots/page.png", "shots/card.png", "shots/next-month.png"]
+screenshots = ["shots/month.png", "shots/day.png", "shots/page.png", "shots/card.png"]

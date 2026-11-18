@@ -9,6 +9,7 @@
 
 use crate::date::{self, Day, Month, CELLS};
 use crate::marks::{Mark, Marks};
+use crate::rpc::Event;
 use cmf_wp2_app::lv::*;
 use cmf_wp2_app::stock::{self, ACCENT, BLACK, CIRCLE, GREY, SCREEN, WHITE};
 use core::fmt::Write;
@@ -35,7 +36,7 @@ const WEEKDAYS_Y: i16 = 94;
 const FOOTER_Y: i16 = GRID_Y as i16 + 6 * ROW_H as i16 + 8;
 
 // bytes one cell, dots included, can take: flush first when fewer are left
-const GROUP: usize = 320;
+const GROUP: usize = 480;
 
 pub type Flush<'a> = dyn FnMut(&mut Batch) -> Result<(), LvError> + 'a;
 
@@ -165,6 +166,14 @@ fn num(n: u8) -> Line {
 /// One day: its number, `today` in the accent pill, a dot per calendar with events. `x`, `y`: top left in `parent`.
 fn cell(b: &mut Batch, parent: Obj, d: Day, dim: bool, today: bool, mark: Mark, x: i32, y: i32) -> Result<Obj, LvError> {
     let c = b.create(Class::Label, parent)?;
+    if mark.count > 0 {
+        // a tap shows the day's events
+        b.flags(c, &[Flag::Clickable], &[])?;
+        b.events(c, &[Ev::Clicked])?;
+        b.style(c, Prop::BgColor, stock::PRESSED, stock::ROW_PRESSED)?;
+        b.style(c, Prop::BgOpa, stock::PRESSED, 255)?;
+        b.style(c, Prop::Radius, 0, 12)?;
+    }
     b.size(c, CELL_W, CELL_H)?;
     b.align(c, Align::TopLeft, x as i16, y as i16)?;
     // 24 px: two digits of the 32 px system font fill a 48 px column and run into the next
@@ -194,8 +203,35 @@ fn cell(b: &mut Batch, parent: Obj, d: Day, dim: bool, today: bool, mark: Mark, 
     Ok(c)
 }
 
-/// A tap target with a grey glyph.
-fn arrow(b: &mut Batch, parent: Obj, glyph: &str, dx: i16) -> Result<Obj, LvError> {
+/// Heroicons' `chevron-left` (outline, `M15.75 19.5 8.25 12l7.5-7.5`), or mirrored to the right for `dir` 1. LVGL
+/// here has no line or image, so the stroke is round dots a pixel apart along both legs: a 2·[`CHEVRON`] px tall
+/// chevron, round caps and joint like the SVG's.
+fn chevron(b: &mut Batch, flush: &mut Flush, parent: Obj, dir: i16) -> Result<(), LvError> {
+    let h = CHEVRON;
+    for i in 0..=2 * h {
+        if i % 4 == 0 {
+            room(b, flush)?;
+        }
+        // the leg from the top end to the point, then the one down to the bottom end
+        let (x, y) = if i <= h { (h / 2 - i, i - h) } else { (-h / 2 + (i - h), i - h) };
+        let d = b.create(Class::Obj, parent)?;
+        b.size(d, STROKE, STROKE)?;
+        b.style(d, Prop::Radius, 0, CIRCLE)?;
+        b.style(d, Prop::BorderWidth, 0, 0)?;
+        b.style(d, Prop::BgColor, 0, GREY)?;
+        b.style(d, Prop::BgOpa, 0, 255)?;
+        b.flags(d, &[], &[Flag::Clickable])?; // a press goes to the tap target
+        b.align(d, Align::Center, -dir * x, y)?;
+    }
+    Ok(())
+}
+
+/// Half the chevron's height and its stroke, px: 24 px tall, as in a 32 px icon; a 4 px stroke reads at arm's length.
+const CHEVRON: i16 = 12;
+const STROKE: i32 = 4;
+
+/// A round tap target with a grey chevron; `dir` -1 left, 1 right.
+fn arrow(b: &mut Batch, flush: &mut Flush, parent: Obj, dir: i16, dx: i16) -> Result<Obj, LvError> {
     let a = b.create(Class::Obj, parent)?;
     b.size(a, ARROW, ARROW)?;
     bare(b, a)?;
@@ -204,10 +240,7 @@ fn arrow(b: &mut Batch, parent: Obj, glyph: &str, dx: i16) -> Result<Obj, LvErro
     b.style(a, Prop::Radius, 0, CIRCLE)?;
     b.align(a, Align::TopMid, dx, TITLE_Y - (ARROW as i16 - 32) / 2)?;
     b.events(a, &[Ev::Clicked])?;
-    let l = b.create(Class::Label, a)?;
-    b.style(l, Prop::TextColor, 0, GREY)?;
-    b.text(l, glyph)?;
-    b.align(l, Align::Center, 0, 0)?;
+    chevron(b, flush, a, dir)?;
     Ok(a)
 }
 
@@ -218,6 +251,8 @@ pub struct MonthView {
     pub prev: Obj,
     pub next: Obj,
     pub shown: Month,
+    /// The grid's cells, as `date::grid(shown)`: a tap on one opens its day.
+    pub cells: [Obj; CELLS],
 }
 
 pub fn month_view(b: &mut Batch, flush: &mut Flush, shown: Month, today: Option<Day>, k: &Marks)
@@ -231,8 +266,8 @@ pub fn month_view(b: &mut Batch, flush: &mut Flush, shown: Month, today: Option<
     b.style(title, Prop::TextFont, 0, F24 as i32)?;
     b.flags(title, &[Flag::Clickable], &[])?;
     b.events(title, &[Ev::Clicked])?;
-    let prev = arrow(b, r, "<", -ARROW_DX)?;
-    let next = arrow(b, r, ">", ARROW_DX)?;
+    let prev = arrow(b, flush, r, -1, -ARROW_DX)?;
+    let next = arrow(b, flush, r, 1, ARROW_DX)?;
     room(b, flush)?;
     for (i, w) in date::WEEKDAYS.iter().enumerate() {
         let l = b.create(Class::Label, r)?;
@@ -242,17 +277,18 @@ pub fn month_view(b: &mut Batch, flush: &mut Flush, shown: Month, today: Option<
         b.text(l, w)?;
         b.align(l, Align::TopLeft, (GRID_X + i as i32 * COL_W) as i16, WEEKDAYS_Y)?;
     }
+    let mut cells = [ROOT; CELLS];
     for (i, d) in date::grid(shown).iter().enumerate().take(CELLS) {
         room(b, flush)?;
         let (x, y) = (GRID_X + (i % 7) as i32 * COL_W + 2, GRID_Y + (i / 7) as i32 * ROW_H + 2);
-        cell(b, r, *d, d.month != shown, today == Some(*d), k.get(*d), x, y)?;
+        cells[i] = cell(b, r, *d, d.month != shown, today == Some(*d), k.get(*d), x, y)?;
     }
     room(b, flush)?;
     let foot = label(b, r, month_summary(today, k).as_str(), 300, 0, FOOTER_Y)?;
     b.style(foot, Prop::TextColor, 0, GREY)?;
     b.style(foot, Prop::TextFont, 0, F24 as i32)?;
     b.flags(r, &[], &[Flag::Hidden])?;
-    Ok(MonthView { root: r, title, prev, next, shown })
+    Ok(MonthView { root: r, title, prev, next, shown, cells })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -301,6 +337,80 @@ pub fn widget_view(b: &mut Batch, flush: &mut Flush, today: Day, k: &Marks) -> R
     b.style(foot, Prop::TextFont, 0, F24 as i32)?;
     b.flags(r, &[], &[Flag::Hidden])?;
     Ok(WidgetView { root: r, today })
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct DayView {
+    pub root: Obj,
+    /// Tap: back to the month.
+    pub title: Obj,
+    pub day: Day,
+}
+
+const EVENT_H: i32 = 96;
+const DAY_TOP: i32 = 110;
+
+/// "09:30–10:00", "all day", or from the start on for one that runs past midnight.
+pub fn span_text(e: &Event) -> Line {
+    let mut out = Line::new();
+    let hm = |m: u32| (m / 60 % 24, m % 60);
+    if e.all_day() {
+        let _ = out.write_str("all day");
+    } else {
+        let (a, b) = (hm(e.start as u32), hm(e.start as u32 + e.duration as u32));
+        let _ = write!(out, "{:02}:{:02}–{:02}:{:02}", a.0, a.1, b.0, b.1);
+    }
+    out
+}
+
+/// One day's events, a crown-scrolled page like the stock lists: the accent date (tap: back to the month), then a
+/// card per event with its calendar's colour, its time and its title ("busy" while the phone keeps titles).
+pub fn day_view<'e>(b: &mut Batch, flush: &mut Flush, day: Day, events: impl Iterator<Item = &'e Event>)
+    -> Result<DayView, LvError> {
+    room(b, flush)?;
+    // laid out by hand: stock::page's flex column came out 16 px left in the emulator
+    let r = root(b)?;
+    b.flags(r, &[Flag::Scrollable], &[])?;
+    b.style(r, Prop::PadBottom, 0, DAY_TOP)?; // the last card can scroll up to the middle
+    let mut t = Line::new();
+    let _ = write!(t, "{} {} {}", &date::WEEKDAY_NAMES[date::weekday(day) as usize][..3], day.day, day.month.name());
+    let title = label(b, r, t.as_str(), stock::ROW_W - 80, 0, TITLE_Y)?;
+    b.style(title, Prop::TextColor, 0, ACCENT)?;
+    b.flags(title, &[Flag::Clickable], &[])?;
+    b.events(title, &[Ev::Clicked])?;
+    let mut n = 0;
+    for e in events {
+        room(b, flush)?;
+        let c = stock::card(b, r, EVENT_H)?;
+        b.align(c, Align::TopMid, 0, (DAY_TOP + n * (EVENT_H + stock::ROW_GAP)) as i16)?;
+        let bar = b.create(Class::Obj, c)?;
+        b.size(bar, 8, EVENT_H - 40)?;
+        b.style(bar, Prop::Radius, 0, CIRCLE)?;
+        b.style(bar, Prop::BorderWidth, 0, 0)?;
+        b.style(bar, Prop::BgColor, 0, e.color as i32)?;
+        b.style(bar, Prop::BgOpa, 0, 255)?;
+        b.align(bar, Align::LeftMid, 40, 0)?;
+        let time = b.create(Class::Label, c)?;
+        b.text(time, span_text(e).as_str())?;
+        b.align(time, Align::TopLeft, 68, 10)?;
+        let name = b.create(Class::Label, c)?;
+        b.size(name, stock::ROW_W - 68 - 48, CONTENT)?;
+        b.long_mode(name, LongMode::Dot)?;
+        b.style(name, Prop::TextAlign, 0, 1)?; // LV_TEXT_ALIGN_LEFT: the root centres
+        b.style(name, Prop::TextFont, 0, F24 as i32)?;
+        b.style(name, Prop::TextColor, 0, GREY)?;
+        b.text(name, if e.title().is_empty() { "busy" } else { e.title() })?;
+        b.align(name, Align::TopLeft, 68, 52)?;
+        n += 1;
+    }
+    if n == 0 {
+        let l = label(b, r, "no events", 300, 0, DAY_TOP as i16)?;
+        b.style(l, Prop::TextColor, 0, GREY)?;
+    }
+    b.scroll_bar(r)?;
+    b.knob(r)?;
+    b.flags(r, &[], &[Flag::Hidden])?;
+    Ok(DayView { root: r, title, day })
 }
 
 /// Deletes a screen.
@@ -398,6 +508,41 @@ mod tests {
             // and the month view after it, as a tap does
             run(&mut t, &mut b, |b, f| month_view(b, f, today.month, Some(today), &k));
         }
+    }
+
+    fn event(start: u16, dur: u16, flags: u8, title: &str) -> Event {
+        let mut r = std::vec![0u8];
+        r.extend(start.to_le_bytes());
+        r.extend(dur.to_le_bytes());
+        r.push(flags);
+        r.extend(0x4CFDu16.to_le_bytes());
+        r.extend(title.as_bytes());
+        Event::decode(&r).unwrap()
+    }
+
+    #[test]
+    fn day_view_validates_then_the_month_again() {
+        let today = Day { month: m(2026, 11), day: 17 };
+        let long = "Созвон с командой по релизу и обсуждение планов";
+        let all: Vec<Event> = (0..32).map(|i| event(i * 30, 30, 0, long)).collect();
+        for evs in [&all[..], &[][..]] {
+            let mut t = Table::new();
+            let mut b = batch();
+            let (v, sizes) = run(&mut t, &mut b, |b, f| {
+                theme(b)?;
+                day_view(b, f, today, evs.iter())
+            });
+            std::println!("day view: {sizes:?} B");
+            run(&mut t, &mut b, |b, _| leave(b, v.root));
+            run(&mut t, &mut b, |b, f| month_view(b, f, today.month, Some(today), &busy(today)));
+        }
+    }
+
+    #[test]
+    fn event_times() {
+        assert_eq!(span_text(&event(570, 30, 0, "")).as_str(), "09:30–10:00");
+        assert_eq!(span_text(&event(1380, 120, 0, "")).as_str(), "23:00–01:00");
+        assert_eq!(span_text(&event(0, 1440, 1, "")).as_str(), "all day");
     }
 
     #[test]
