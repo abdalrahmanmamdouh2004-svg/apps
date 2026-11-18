@@ -2,8 +2,8 @@ A month calendar for the wrist. Today sits in an accent pill, and each day of th
 in its calendar's colour (up to three per day). Turn the crown or tap **<** and **>** to change the month; tap the
 month's name to come back to today. Tap a day with dots to see its events: time, calendar colour and title.
 
-It can also live next to the watch face: long-press **Calendar** in Apps and choose **Add page** for a full-screen view
-of today and this week, or **Add widget** for a card with the date and today's event count.
+It can also live next to the watch face: long-press **Calendar** in Apps and choose **Add page** for today's events under this
+week (tap a day of the week for its events, the crown scrolls them), or **Add widget** for a card with the date and today's event count.
 
 The events come from your phone: the watch asks when you open the app and every 5 minutes while it runs, and keeps the
 last answer. The phone sends the next 7 days, so days further on have no dots.

@@ -1,8 +1,8 @@
 //! The two screens, in the stock look (`cmf_wp2_app::stock`):
 //! - month: the accent month title between `<` and `>`, weekday initials, a 6×7 grid of days with a dot per calendar
 //!   that has an event, today in an accent pill, a summary line under it;
-//! - widget (the page next to the watch face): today's weekday, date and month, this week with its dots, today's
-//!   event count.
+//! - day: a day's events as cards under its date;
+//! - widget (the page next to the watch face): the day screen with this week between the date and the events.
 //!
 //! Each screen is one root object under `ROOT`; leaving it deletes the root and everything in it. A screen is built
 //! hidden, over as many batches as it needs, and shown in the last one.
@@ -139,7 +139,7 @@ fn bare(b: &mut Batch, o: Obj) -> Result<(), LvError> {
     b.flags(o, &[], &[Flag::Scrollable])
 }
 
-/// A full-screen, transparent, hidden root that sends CLICKED (the widget screen's tap).
+/// A full-screen, transparent, hidden root.
 fn root(b: &mut Batch) -> Result<Obj, LvError> {
     let r = b.create(Class::Obj, ROOT)?;
     b.size(r, SCREEN, SCREEN)?;
@@ -226,8 +226,8 @@ fn chevron(b: &mut Batch, flush: &mut Flush, parent: Obj, dir: i16) -> Result<()
     Ok(())
 }
 
-/// Half the chevron's height and its stroke, px: 24 px tall, as in a 32 px icon; a 4 px stroke reads at arm's length.
-const CHEVRON: i16 = 12;
+/// Half the chevron's height and its stroke, px: 20 px tall; a 4 px stroke reads at arm's length.
+const CHEVRON: i16 = 10;
 const STROKE: i32 = 4;
 
 /// A round tap target with a grey chevron; `dir` -1 left, 1 right.
@@ -238,7 +238,8 @@ fn arrow(b: &mut Batch, flush: &mut Flush, parent: Obj, dir: i16, dx: i16) -> Re
     b.style(a, Prop::BgColor, stock::PRESSED, stock::ROW_PRESSED)?;
     b.style(a, Prop::BgOpa, stock::PRESSED, 255)?;
     b.style(a, Prop::Radius, 0, CIRCLE)?;
-    b.align(a, Align::TopMid, dx, TITLE_Y - (ARROW as i16 - 32) / 2)?;
+    // centred on the title's glyphs (digits at y 47-63 in the emulator), not its 32 px line box
+    b.align(a, Align::TopMid, dx, TITLE_Y + 11 - ARROW as i16 / 2)?;
     b.events(a, &[Ev::Clicked])?;
     chevron(b, flush, a, dir)?;
     Ok(a)
@@ -294,61 +295,20 @@ pub fn month_view(b: &mut Batch, flush: &mut Flush, shown: Month, today: Option<
 #[derive(Clone, Copy, Debug)]
 pub struct WidgetView {
     pub root: Obj,
-    pub today: Day,
-}
-
-// widget geometry
-const W_WEEKDAY_Y: i16 = 70;
-const W_DAY_Y: i16 = 104;
-const W_MONTH_Y: i16 = 168;
-const W_INITIALS_Y: i16 = 222;
-const W_WEEK_Y: i32 = 252;
-const W_FOOTER_Y: i16 = 322;
-
-pub fn widget_view(b: &mut Batch, flush: &mut Flush, today: Day, k: &Marks) -> Result<WidgetView, LvError> {
-    room(b, flush)?;
-    let r = root(b)?;
-    b.flags(r, &[Flag::Clickable], &[])?;
-    b.events(r, &[Ev::Clicked])?;
-    let wd = label(b, r, date::WEEKDAY_NAMES[date::weekday(today) as usize], 300, 0, W_WEEKDAY_Y)?;
-    b.style(wd, Prop::TextColor, 0, GREY)?;
-    let day = label(b, r, num(today.day).as_str(), 200, 0, W_DAY_Y)?;
-    b.style(day, Prop::TextFont, 0, F48 as i32)?;
-    let mut t = Line::new();
-    let _ = write!(t, "{} {}", today.month.name(), today.month.year);
-    let mo = label(b, r, t.as_str(), 300, 0, W_MONTH_Y)?;
-    b.style(mo, Prop::TextColor, 0, ACCENT)?;
-    b.style(mo, Prop::TextFont, 0, F24 as i32)?;
-    room(b, flush)?;
-    for (i, w) in date::WEEKDAYS.iter().enumerate() {
-        let l = b.create(Class::Label, r)?;
-        b.size(l, COL_W, CONTENT)?;
-        b.style(l, Prop::TextColor, 0, GREY)?;
-        b.style(l, Prop::TextFont, 0, F24 as i32)?;
-        b.text(l, w)?;
-        b.align(l, Align::TopLeft, (GRID_X + i as i32 * COL_W) as i16, W_INITIALS_Y)?;
-    }
-    for (i, d) in date::week(today).iter().enumerate() {
-        room(b, flush)?;
-        cell(b, r, *d, d.month != today.month, *d == today, k.get(*d), GRID_X + i as i32 * COL_W + 2, W_WEEK_Y)?;
-    }
-    room(b, flush)?;
-    let foot = label(b, r, today_summary(today, k).as_str(), 300, 0, W_FOOTER_Y)?;
-    b.style(foot, Prop::TextFont, 0, F24 as i32)?;
-    b.flags(r, &[], &[Flag::Hidden])?;
-    Ok(WidgetView { root: r, today })
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct DayView {
-    pub root: Obj,
-    /// Tap: back to the month.
+    /// Tap: the month.
     pub title: Obj,
-    pub day: Day,
+    pub today: Day,
+    /// The day whose events are listed.
+    pub sel: Day,
+    /// `date::week(today)`: a tap lists that day.
+    pub cells: [Obj; 7],
 }
 
 const EVENT_H: i32 = 96;
 const DAY_TOP: i32 = 110;
+// the page: the week under the title, the events under the week
+const W_WEEK_Y: i32 = GRID_Y;
+const W_TOP: i32 = GRID_Y + ROW_H + 16;
 
 /// "09:30–10:00", "all day", or from the start on for one that runs past midnight.
 pub fn span_text(e: &Event) -> Line {
@@ -363,11 +323,8 @@ pub fn span_text(e: &Event) -> Line {
     out
 }
 
-/// One day's events, a crown-scrolled page like the stock lists: the accent date (tap: back to the month), then a
-/// card per event with its calendar's colour, its time and its title ("busy" while the phone keeps titles).
-pub fn day_view<'e>(b: &mut Batch, flush: &mut Flush, day: Day, events: impl Iterator<Item = &'e Event>)
-    -> Result<DayView, LvError> {
-    room(b, flush)?;
+/// A crown-scrolled root with the accent "wed 18 november" title (clickable).
+fn day_root(b: &mut Batch, day: Day) -> Result<(Obj, Obj), LvError> {
     // laid out by hand: stock::page's flex column came out 16 px left in the emulator
     let r = root(b)?;
     b.flags(r, &[Flag::Scrollable], &[])?;
@@ -378,11 +335,18 @@ pub fn day_view<'e>(b: &mut Batch, flush: &mut Flush, day: Day, events: impl Ite
     b.style(title, Prop::TextColor, 0, ACCENT)?;
     b.flags(title, &[Flag::Clickable], &[])?;
     b.events(title, &[Ev::Clicked])?;
+    Ok((r, title))
+}
+
+/// A card per event from `top` down, with its calendar's colour, its time and its title ("busy" while the phone
+/// keeps titles); `empty` when there are none. Then the scroll bar, and the root shown.
+fn event_cards<'e>(b: &mut Batch, flush: &mut Flush, r: Obj, top: i32, events: impl Iterator<Item = &'e Event>,
+    empty: &str) -> Result<(), LvError> {
     let mut n = 0;
     for e in events {
         room(b, flush)?;
         let c = stock::card(b, r, EVENT_H)?;
-        b.align(c, Align::TopMid, 0, (DAY_TOP + n * (EVENT_H + stock::ROW_GAP)) as i16)?;
+        b.align(c, Align::TopMid, 0, (top + n * (EVENT_H + stock::ROW_GAP)) as i16)?;
         let bar = b.create(Class::Obj, c)?;
         b.size(bar, 8, EVENT_H - 40)?;
         b.style(bar, Prop::Radius, 0, CIRCLE)?;
@@ -404,12 +368,64 @@ pub fn day_view<'e>(b: &mut Batch, flush: &mut Flush, day: Day, events: impl Ite
         n += 1;
     }
     if n == 0 {
-        let l = label(b, r, "no events", 300, 0, DAY_TOP as i16)?;
+        let l = label(b, r, empty, 300, 0, top as i16)?;
         b.style(l, Prop::TextColor, 0, GREY)?;
     }
     b.scroll_bar(r)?;
     b.knob(r)?;
-    b.flags(r, &[], &[Flag::Hidden])?;
+    b.flags(r, &[], &[Flag::Hidden])
+}
+
+/// The page next to the watch face: `sel`'s date, this week with its dots (a tap picks a day), and `sel`'s events
+/// under it, scrolled by the crown.
+pub fn widget_view<'e>(b: &mut Batch, flush: &mut Flush, today: Day, sel: Day, k: &Marks,
+    events: impl Iterator<Item = &'e Event>) -> Result<WidgetView, LvError> {
+    room(b, flush)?;
+    let (r, title) = day_root(b, sel)?;
+    for (i, w) in date::WEEKDAYS.iter().enumerate() {
+        let l = b.create(Class::Label, r)?;
+        b.size(l, COL_W, CONTENT)?;
+        b.style(l, Prop::TextColor, 0, GREY)?;
+        b.style(l, Prop::TextFont, 0, F24 as i32)?;
+        b.text(l, w)?;
+        b.align(l, Align::TopLeft, (GRID_X + i as i32 * COL_W) as i16, WEEKDAYS_Y)?;
+    }
+    let mut cells = [ROOT; 7];
+    for (i, d) in date::week(today).iter().enumerate() {
+        room(b, flush)?;
+        let c = cell(b, r, *d, d.month != today.month, *d == today, k.get(*d), GRID_X + i as i32 * COL_W + 2, W_WEEK_Y)?;
+        // every day of the week picks, an empty one too; the picked one sits on the pressed grey
+        b.flags(c, &[Flag::Clickable], &[])?;
+        b.events(c, &[Ev::Clicked])?;
+        b.style(c, Prop::BgColor, stock::PRESSED, stock::ROW_PRESSED)?;
+        b.style(c, Prop::BgOpa, stock::PRESSED, 255)?;
+        b.style(c, Prop::Radius, 0, 12)?;
+        if *d == sel && sel != today {
+            b.style(c, Prop::BgColor, 0, stock::ROW_PRESSED)?;
+            b.style(c, Prop::BgOpa, 0, 255)?;
+        }
+        cells[i] = c;
+    }
+    room(b, flush)?;
+    event_cards(b, flush, r, W_TOP, events, k.note.unwrap_or("no events"))?;
+    Ok(WidgetView { root: r, title, today, sel, cells })
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct DayView {
+    pub root: Obj,
+    /// Tap: back to the month.
+    pub title: Obj,
+    pub day: Day,
+}
+
+/// One day's events, a crown-scrolled page like the stock lists: the accent date (tap: back to the month), then a
+/// card per event.
+pub fn day_view<'e>(b: &mut Batch, flush: &mut Flush, day: Day, events: impl Iterator<Item = &'e Event>)
+    -> Result<DayView, LvError> {
+    room(b, flush)?;
+    let (r, title) = day_root(b, day)?;
+    event_cards(b, flush, r, DAY_TOP, events, "no events")?;
     Ok(DayView { root: r, title, day })
 }
 
@@ -496,12 +512,13 @@ mod tests {
     #[test]
     fn widget_view_validates() {
         let today = Day { month: m(2026, 12), day: 1 }; // its week starts in November
+        let all: Vec<Event> = (0..32).map(|i| event(i * 30, 30, 0, "Созвон с командой по релизу и обсуждение")).collect();
         for k in [Marks::empty(), busy(today)] {
             let mut t = Table::new();
             let mut b = batch();
             let (v, sizes) = run(&mut t, &mut b, |b, f| {
                 theme(b)?;
-                widget_view(b, f, today, &k)
+                widget_view(b, f, today, today, &k, all.iter())
             });
             std::println!("widget view: {sizes:?} B");
             run(&mut t, &mut b, |b, _| leave(b, v.root));

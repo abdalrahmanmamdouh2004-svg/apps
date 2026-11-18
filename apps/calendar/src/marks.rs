@@ -57,11 +57,6 @@ impl Marks {
         k
     }
 
-    /// Whether `d` is in the phone's window (its events are known).
-    pub fn known(&self, d: Day) -> bool {
-        self.note.is_none() && (0..DAYS as i32).contains(&(day_no(d) - self.from))
-    }
-
     /// The day's mark; empty outside the phone's window.
     pub fn get(&self, d: Day) -> Mark {
         usize::try_from(day_no(d) - self.from).ok().and_then(|i| self.days.get(i)).copied().unwrap_or_default()

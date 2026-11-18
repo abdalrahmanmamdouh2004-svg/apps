@@ -99,8 +99,15 @@ mod device {
 
     enum Want {
         Month(Month),
+        /// The page, listing that day of this week.
         Widget(Day),
         Day(Day),
+    }
+
+    /// The phone's events that start on `d`.
+    fn events(m: &Model, w: i32, today: Option<Day>, d: Day) -> impl Iterator<Item = &crate::rpc::Event> {
+        let off = crate::marks::day_no(d) - today.map_or(0, crate::marks::day_no);
+        (0..m.n).filter(move |&i| m.span(i, w).0 == off).map(move |i| &m.events[i])
     }
 
     struct App {
@@ -119,17 +126,16 @@ mod device {
             let lv = self.lv;
             let mut flush = |b: &mut Batch| b.submit(&lv);
             let old = self.view.root();
+            let (m, w, today) = (&*self.model, wall(self.api).unwrap_or(0), self.today);
             let r = screen::leave(&mut self.b, old).and_then(|_| match want {
                 Want::Month(m) => {
                     screen::month_view(&mut self.b, &mut flush, m, self.today, &self.marks).map(View::Month)
                 }
-                Want::Widget(d) => screen::widget_view(&mut self.b, &mut flush, d, &self.marks).map(View::Widget),
-                Want::Day(d) => {
-                    let (m, w) = (&*self.model, wall(self.api).unwrap_or(0));
-                    let off = crate::marks::day_no(d) - self.today.map_or(0, crate::marks::day_no);
-                    let events = (0..m.n).filter(move |&i| m.span(i, w).0 == off).map(move |i| &m.events[i]);
-                    screen::day_view(&mut self.b, &mut flush, d, events).map(View::Day)
+                Want::Widget(d) => {
+                    let t = self.today.unwrap_or(d);
+                    screen::widget_view(&mut self.b, &mut flush, t, d, &self.marks, events(m, w, today, d)).map(View::Widget)
                 }
+                Want::Day(d) => screen::day_view(&mut self.b, &mut flush, d, events(m, w, today, d)).map(View::Day),
             });
             let r = match r {
                 Ok(v) => {
@@ -154,7 +160,9 @@ mod device {
             let want = match self.view {
                 View::Month(v) => Want::Month(v.shown),
                 View::Day(v) => Want::Day(v.day),
-                View::Widget(_) => match self.today {
+                // the picked day stays while it's still this week's
+                View::Widget(v) => match self.today {
+                    Some(_) if Some(v.today) == self.today => Want::Widget(v.sel),
                     Some(d) => Want::Widget(d),
                     None => Want::Month(FALLBACK),
                 },
@@ -294,7 +302,12 @@ mod device {
                             }
                         }
                         View::Day(v) if h == v.title.0 => app.show(Want::Month(v.day.month)),
-                        View::Widget(w) if h == w.root.0 => app.show(Want::Month(w.today.month)),
+                        View::Widget(w) if h == w.title.0 => app.show(Want::Month(w.today.month)),
+                        View::Widget(w) => {
+                            if let Some(i) = w.cells.iter().position(|c| c.0 == h) {
+                                app.show(Want::Widget(crate::date::week(w.today)[i]));
+                            }
+                        }
                         _ => {}
                     }
                 }
