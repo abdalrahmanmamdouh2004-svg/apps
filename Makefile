@@ -39,7 +39,7 @@ help:
 	@echo 'new NAME=x           a new app in apps/x, copied from apps/$(TEMPLATE)'
 	@echo 'build [APP=x]        target/x.wp2app (all apps without APP)'
 	@echo 'check                validate every store.toml/store.md'
-	@echo 'test [APP=x]         host unit tests'
+	@echo 'test [APP=x]         host unit tests, and the shared crates in crates/'
 	@echo 'sim APP=x            run the app on this computer in the wp2-apps simulator, args in SIM_ARGS'
 	@echo 'fw                   stub firmware + App Loader from the pinned wp2-apps (needs CMF_WATCH_UTILS)'
 	@echo 'nor                  $(NOR): STOCK_NOR with the stub firmware'
@@ -99,6 +99,8 @@ check:
 
 test: sdk
 	cd apps && cargo test --target $(HOST) $(if $(APP),-p $(APP))
+	@# the crates the apps share (crates/), outside the apps workspace: always, they take a second
+	for c in crates/*/; do (cd $$c && cargo test --quiet --target $(HOST) --target-dir $(CURDIR)/target) || exit 1; done
 
 sim: sdk
 	$(call need,APP,name)
