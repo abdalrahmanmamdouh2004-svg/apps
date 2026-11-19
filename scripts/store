@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
 APPS = ROOT / "apps"
 SDK = ROOT / ".sdk/wp2-apps"
 TARGET = ROOT / "target"
-# a change here can change every package
-SHARED = ("apps/Cargo.toml", "apps/Cargo.lock", "apps/.cargo/", "Makefile", "scripts/store", ".github/workflows/store.yml")
+# a change here can change every package (crates/: the code the apps share)
+SHARED = ("crates/", "apps/Cargo.toml", "apps/Cargo.lock", "apps/.cargo/", "Makefile", "scripts/store", ".github/workflows/store.yml")
 # key: (type, max length); the store's limits (fmc_pocketbase, migration 1754000000_store.js)
 KEYS = {"name": (str, 60), "summary": (str, 140), "version": (str, 24), "author": (str, 60),
         "screenshots": (list, 8)}

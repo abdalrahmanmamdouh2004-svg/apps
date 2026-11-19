@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "cmf-wp2-app",
  "cmf-wp2-ui",
+ "companion-rpc",
  "wp2-core",
 ]
 
@@ -22,6 +23,10 @@ dependencies = [
  "cmf-wp2-app",
  "wp2-core",
 ]
+
+[[package]]
+name = "companion-rpc"
+version = "0.1.0"
 
 [[package]]
 name = "focus-timer"
