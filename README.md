@@ -60,11 +60,15 @@ Everything you install on your watch is at your own risk.
 
 An app can exchange short messages with a phone or a Mac (app-guide.md, section 4). On the phone side,
 [FMC Companion](https://github.com/fmctools/companion) (iOS and Android) works next to Nothing X and answers apps'
-requests for phone services: the calendar, location, weather, an HTTPS GET, and notifications on Android. The user
-allows each one per app in the companion. The byte layouts are in
-[docs/miniapp-rpc.md](https://github.com/fmctools/companion/blob/main/docs/miniapp-rpc.md); what an app can count on
-is in [docs/companion.md](docs/companion.md); [`apps/calendar`](apps/calendar) uses the calendar. Never send personal
-data over the channel: anyone nearby can read it.
+requests for phone services: the calendar, reminders (iOS), location, weather, HTTPS requests, notifications and the
+music player (Android), a notification on the phone, storage, the phone's battery, and background jobs that refresh
+a widget while the app is closed (patched firmware stub 8, `1.0.0.73-wp2.11`, or later). The user allows each one per
+app in the companion. [docs/companion.md](docs/companion.md) lists them with what each needs and what an app can
+count on; [`crates/companion-rpc`](crates/companion-rpc) builds the requests and reads the answers, so an app never
+deals with the byte layouts in
+[docs/miniapp-rpc.md](https://github.com/fmctools/companion/blob/main/docs/miniapp-rpc.md).
+[`apps/calendar`](apps/calendar) and [`apps/reminders`](apps/reminders) use it. Never send personal data over the
+channel: anyone nearby can read it.
 
 ## Publish it
 
