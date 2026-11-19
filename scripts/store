@@ -171,7 +171,8 @@ def build(name):
         env["WP2_ICON"] = str(icons / f"{name}.wp2icon")
     # the SDK sits outside the workspace, so panic locations would carry this machine's absolute path to it;
     # remapped, a package is the same on every machine (appended to apps/.cargo/config.toml's rustflags)
-    remap = f'target.thumbv7em-none-eabi.rustflags=["--remap-path-prefix={SDK}=wp2-apps"]'
+    # Cargo parses --config as TOML; native Windows backslashes in a quoted value are escapes there.
+    remap = f'target.thumbv7em-none-eabi.rustflags=["--remap-path-prefix={SDK.as_posix()}=wp2-apps"]'
     subprocess.run(["cargo", "build", "--release", "-p", name, "--config", remap], cwd=APPS, env=env, check=True)
     elf = TARGET / "thumbv7em-none-eabi/release" / name
     subprocess.run(["llvm-objcopy", "-O", "binary", "--set-section-flags", ".data=alloc,load,contents",
