@@ -14,6 +14,7 @@ An app runs on a watch with the patched firmware and the App Loader, both on the
 | [`orbit`](apps/orbit) | Round-screen Pong: turn the crown to keep the ball inside the ring |
 | [`vela-nav`](apps/vela-nav) | Turn-by-turn directions from the Vela maps app on an Android phone |
 | [`calendar`](apps/calendar) | A month with the phone's events as dots, a page next to the face and a widget card (needs FMC Companion) |
+| [`reminders`](apps/reminders) | The iPhone's open reminders: overdue, today, later; tick one off with a tap, and a widget card (needs FMC Companion on an iPhone) |
 
 ## Make your own app
 

@@ -140,8 +140,9 @@ again when the spec changes). `make test` runs it. Worked examples: `apps/calend
 | `job.set`, `job.delete` | `0x90`, `0x91` | the job's request's | both | the phone runs a request every N min while the app is closed and `PUSH`es the result into its widget or start blob (stub 8, below) |
 
 A method the phone's OS can't do answers `UNAVAILABLE` and `caps` never lists it: reminders on Android, notifications
-and media on iOS. Both companions implement every method. Only `calendar.events` is tried on a real watch; `reminders` has
-`apps/reminders` but no hardware run yet, the rest have no watch app, so expect to find the first bugs.
+and media on iOS. Both companions implement every method. Only `calendar.events` is tried on a real watch; `reminders` and
+`reminders.complete` ran in the emulator against a fake phone (`apps/reminders`), the rest have no watch app, so expect
+to find the first bugs.
 
 How it works and what it can't do:
 
