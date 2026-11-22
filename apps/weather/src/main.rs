@@ -3,8 +3,9 @@
 //! - The menu app is three pages in the stock pager (`screen::pages_view`): now, hours, days. The crown or a
 //!   swipe pages; the hours and days scroll first. BUTTON exits.
 //! - The page next to the watch face (`app_features!(PAGE)`) is the now screen alone (`screen::face_view`).
-//! - The card left of the face (`WIDGET`): the place, the temperature with the condition, high and low; written
-//!   whenever it changes while the app runs.
+//! - The card left of the face (`WIDGET`): from stub 9 now and the next three hours in columns with the app's own
+//!   icons (`widget-icons/`, README.md), before that the place, the temperature with the condition, high and low;
+//!   written whenever it changes while the app runs, a new hour too.
 //!
 //! The weather comes from the phone at start and every 15 minutes while shown, and is kept in the app's storage so
 //! it opens at once without the phone (`model.rs`).
@@ -20,7 +21,7 @@ fn main() {}
 
 #[cfg(target_os = "none")]
 mod device {
-    use crate::model::{BLOB_MAX, Got, Line, Model, wall_min};
+    use crate::model::{BLOB_MAX, Card, Got, Model, Widget, wall_min};
     use crate::screen::{self, View};
     use cmf_wp2_app::lv::{Batch, Lv, ROOT};
     use cmf_wp2_app::{Api, BUTTON, MESSAGE, MSG_MAX, PAUSE, RESUME};
@@ -52,7 +53,7 @@ mod device {
         on_page: bool,
         /// What the screen shows depends on, besides the data.
         shown: (i32, bool, i32),
-        card: (Line, Line),
+        widget: Widget,
     }
 
     impl App {
@@ -89,13 +90,13 @@ mod device {
             }
         }
 
-        /// The card, when its text changes.
+        /// The card, when it changes.
         fn card(&mut self) {
-            let (t, v) = self.model.card(wall(self.api));
-            if t.as_str() != self.card.0.as_str() || v.as_str() != self.card.1.as_str() {
-                self.api.widget(t.as_str(), v.as_str());
-                self.card = (t, v);
-            }
+            let api = self.api;
+            self.widget.update(self.model, wall(api), |card| match card {
+                Card::Columns((rec, n)) => api.widget_v2(&rec[..*n]),
+                Card::Text(t, v) => api.widget(t.as_str(), v.as_str()),
+            });
         }
 
         fn poll(&mut self) {
@@ -145,7 +146,7 @@ mod device {
         model.ask_now(api.now());
         let view = View { root: ROOT, pager: None, bars: [ROOT; 3] };
         let mut app =
-            App { api, lv, b, model, view, page: 0, on_page: api.on_page(), shown: (0, false, 0), card: (Line::new(), Line::new()) };
+            App { api, lv, b, model, view, page: 0, on_page: api.on_page(), shown: (0, false, 0), widget: Widget::new() };
         app.draw();
         app.card();
         let mut paused = false;

@@ -338,3 +338,199 @@ fn hours_and_days_count_from_the_phones_clock_not_the_watchs() {
     assert_eq!(back.day_at(0, at), m.day_at(0, at));
     assert_eq!(back.hour_at(0, at), m.hour_at(0, at));
 }
+
+// The columns card. The phone pushes the same bytes (fmctools/companion): change neither side alone.
+
+/// The current weather, and hourly entries from `first` o'clock: (temperature, code).
+fn forecast(temp: i16, code: u8, first: u8, list: &[(i8, u8)]) -> Vec<Vec<u8>> {
+    let t = temp.to_le_bytes();
+    let mut h = Vec::from([2, first]);
+    for &(t, c) in list {
+        h.extend([t as u8, c, 0]);
+    }
+    Vec::from([Vec::from([0, t[0], t[1], code, 5, 80, 0]), h])
+}
+
+/// What stub 9 draws from the record at `wall`: caption, icon, value. Its own parser, with Weather's eight icons.
+fn drawn(m: &Model, wall: i32) -> Vec<(std::string::String, Option<u8>, std::string::String)> {
+    let Some((rec, n)) = m.columns(wall) else { return Vec::new() };
+    let Some(wp2_core::widget::Card::Columns(k)) = wp2_core::widget::card(&rec[..n], 8) else {
+        panic!("stub 9 would not draw {:?}", &rec[..n]);
+    };
+    rec[3..n].chunks_exact(21).take(k as usize).map(|c| (text(&c[..10]), Some(c[10]), text(&c[11..]))).collect()
+}
+
+fn text(b: &[u8]) -> std::string::String {
+    core::str::from_utf8(b).unwrap().trim_end_matches('\0').into()
+}
+
+fn at(day: i32, hour: i32, minute: i32) -> i32 {
+    day * 1440 + hour * 60 + minute
+}
+
+fn captions(m: &Model, wall: i32) -> Vec<std::string::String> {
+    drawn(m, wall).into_iter().map(|c| c.0).collect()
+}
+
+#[test]
+fn columns_golden_bytes() {
+    // wp2apps.install.columns_record([("Now",6,"-3°"),("23:00",2,"-4°"),("00:00",0,"-5°"),("01:00",7,"0°")])
+    let golden = concat!(
+        "ff0104",
+        "4e6f7700000000000000", "06", "2d33c2b0000000000000",
+        "32333a30300000000000", "02", "2d34c2b0000000000000",
+        "30303a30300000000000", "00", "2d35c2b0000000000000",
+        "30313a30300000000000", "07", "30c2b000000000000000",
+    );
+    let now = at(20_777, 22, 20);
+    let m = answered_at(&forecast(-34, 71, 22, &[(9, 1), (-4, 3), (-5, 0), (0, 95), (8, 45)]), "", now);
+    let (rec, n) = m.columns(now).expect("a card");
+    let hex: std::string::String = rec[..n].iter().map(|b| std::format!("{b:02x}")).collect();
+    assert_eq!((n, hex.as_str()), (87, golden));
+}
+
+#[test]
+fn columns_wrap_at_midnight_and_move_with_the_hour() {
+    let m = answered_at(&forecast(10, 0, 21, &[(0, 0); 12]), "", at(20_777, 21, 5));
+    assert_eq!(captions(&m, at(20_777, 21, 59)), ["Now", "22:00", "23:00", "00:00"]);
+    assert_eq!(captions(&m, at(20_777, 22, 0)), ["Now", "23:00", "00:00", "01:00"]);
+    assert_eq!(captions(&m, at(20_778, 0, 0)), ["Now", "01:00", "02:00", "03:00"]);
+}
+
+#[test]
+fn columns_of_a_cache_skip_the_hours_that_passed() {
+    let list: Vec<(i8, u8)> = (0..12).map(|i| (i, 3)).collect();
+    let m = answered(&forecast(216, 0, 13, &list));
+    let mut blob = [0u8; BLOB_MAX];
+    let n = m.save(&mut blob);
+    let mut back = Model::new();
+    assert!(back.load(&blob[..n]));
+    let values = |wall| drawn(&back, wall).into_iter().map(|c| (c.0, c.2)).collect::<Vec<_>>();
+    let pairs = |p: &[(&str, &str)]| p.iter().map(|&(a, b)| (a.into(), b.into())).collect::<Vec<_>>();
+    // 19:20: the three after 19, not the three after the cache's first entry (13)
+    assert_eq!(values(WALL + 6 * 60), pairs(&[("Now", "22°"), ("20:00", "7°"), ("21:00", "8°"), ("22:00", "9°")]));
+    // 22:20: two are left, then none; two days later none come round again
+    assert_eq!(values(WALL + 9 * 60), pairs(&[("Now", "22°"), ("23:00", "10°"), ("00:00", "11°")]));
+    assert_eq!(values(WALL + 11 * 60), pairs(&[("Now", "22°")]));
+    assert_eq!(values(WALL + 2 * 1440), pairs(&[("Now", "22°")]));
+}
+
+#[test]
+fn columns_count_from_the_phones_hour() {
+    // the phone answered in its 13th hour, the watch got it at 14:02
+    let wall = at(20_777, 14, 2);
+    let m = answered_at(&forecast(0, 0, 13, &[(1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]), "", wall);
+    assert_eq!(captions(&m, wall), ["Now", "15:00", "16:00", "17:00"]);
+    assert_eq!(drawn(&m, wall)[1].2, "3°");
+    // the phone is in 14 already, the watch at 13:59: 14 is the next hour
+    let wall = at(20_777, 13, 59);
+    let m = answered_at(&forecast(0, 0, 14, &[(4, 0), (5, 0), (6, 0), (7, 0)]), "", wall);
+    assert_eq!(captions(&m, wall), ["Now", "14:00", "15:00", "16:00"]);
+    // a clock set back: only those of the next three hours that are known
+    assert_eq!(captions(&m, wall - 60), ["Now", "14:00", "15:00"]);
+    assert_eq!(captions(&m, wall - 5 * 60), ["Now"]);
+}
+
+#[test]
+fn fewer_hours_give_fewer_columns_and_no_weather_none() {
+    for (known, want) in [(0, 1), (1, 1), (2, 2), (3, 3), (4, 4), (12, 4)] {
+        let m = answered(&forecast(0, 0, 13, &std::vec![(0, 0); known]));
+        assert_eq!(drawn(&m, WALL).len(), want, "{known} hours known");
+        assert_eq!(m.columns(WALL).map(|r| r.1), Some(3 + 21 * want));
+    }
+    assert_eq!(drawn(&answered(&[NOW.to_vec()]), WALL).len(), 1, "no hourly record");
+    assert!(Model::new().columns(WALL).is_none(), "no current weather");
+}
+
+#[test]
+fn column_values_round_away_from_zero() {
+    for (t10, want) in [
+        (-35, "-4°"), (-34, "-3°"), (-5, "-1°"), (-4, "0°"), (0, "0°"), (4, "0°"), (5, "1°"), (25, "3°"),
+        (216, "22°"), (i16::MAX, "3277°"), (i16::MIN, "-3277°"),
+    ] {
+        assert_eq!(drawn(&answered(&forecast(t10, 0, 13, &[])), WALL)[0].2, want, "{t10}");
+    }
+}
+
+#[test]
+fn column_icons_follow_the_contract_for_every_code() {
+    for code in 0..=255u8 {
+        let want = match code {
+            0 => 0,
+            1 | 2 => 1,
+            45 | 48 => 3,
+            51..=57 => 4,
+            61..=67 | 80..=82 => 5,
+            71..=77 | 85 | 86 => 6,
+            95..=99 => 7,
+            _ => 2,
+        };
+        let m = answered(&forecast(0, code, 13, &[(0, 0), (0, code)]));
+        let got: Vec<_> = drawn(&m, WALL).into_iter().map(|c| c.1).collect();
+        assert_eq!(got, [Some(want), Some(want)], "WMO {code}, Now and an hour");
+    }
+}
+
+#[test]
+fn widget_icon_files_are_in_the_contracts_order() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("widget-icons");
+    let mut names: Vec<std::string::String> = std::fs::read_dir(dir)
+        .expect("widget-icons/")
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter(|n| n.ends_with(".svg"))
+        .collect();
+    names.sort();
+    let want = ["clear", "partly", "cloud", "fog", "drizzle", "rain", "snow", "storm"];
+    let want: Vec<_> = want.iter().enumerate().map(|(i, n)| std::format!("{i:02}-{n}.svg")).collect();
+    assert_eq!(names, want, "the package numbers the icons in file name order");
+}
+
+/// The writes of one update: (is columns, the text card's value), the watch answering `rc` to columns.
+fn writes(w: &mut Widget, m: &Model, wall: i32, rc: i32) -> Vec<(bool, std::string::String)> {
+    let mut out = Vec::new();
+    w.update(m, wall, |card| match card {
+        Card::Columns(..) => {
+            out.push((true, "".into()));
+            rc
+        }
+        Card::Text(_, v) => {
+            out.push((false, v.as_str().into()));
+            0
+        }
+    });
+    out
+}
+
+#[test]
+fn the_card_is_written_on_a_changed_record_only() {
+    let mut w = Widget::new();
+    let wall = at(20_777, 13, 20);
+    assert_eq!(writes(&mut w, &Model::new(), wall, 0), [(false, "Open the app".into())], "no weather: the text card");
+    let m = answered(&week());
+    assert_eq!(writes(&mut w, &m, wall, 0), [(true, "".into())]);
+    for minute in [20, 21, 59] {
+        assert_eq!(writes(&mut w, &m, at(20_777, 13, minute), 0), [], "the same record");
+    }
+    assert_eq!(writes(&mut w, &m, at(20_777, 14, 0), 0), [(true, "".into())], "the next hour");
+}
+
+#[test]
+fn a_watch_without_columns_gets_the_text_card_and_is_not_asked_again() {
+    let mut w = Widget::new();
+    let m = answered(&week());
+    let text = (false, "-3 Snow\nH 1 L -5".into());
+    assert_eq!(writes(&mut w, &m, WALL, -22), [(true, "".into()), text], "refused: the text card at once");
+    assert_eq!(writes(&mut w, &m, WALL, -22), [], "the same text");
+    assert_eq!(writes(&mut w, &m, WALL + 60, -22), [], "the next hour, the same text: no second try");
+    let warmer = answered(&forecast(50, 0, 13, &[]));
+    assert_eq!(writes(&mut w, &warmer, WALL + 60, -22), [(false, "5 Clear".into())], "new text, still no second try");
+}
+
+#[test]
+fn a_failed_write_is_written_again_and_is_no_reason_for_text() {
+    let mut w = Widget::new();
+    let m = answered(&week());
+    assert_eq!(writes(&mut w, &m, WALL, -5), [(true, "".into())]);
+    assert_eq!(writes(&mut w, &m, WALL, 0), [(true, "".into())]);
+    assert_eq!(writes(&mut w, &m, WALL, 0), []);
+}

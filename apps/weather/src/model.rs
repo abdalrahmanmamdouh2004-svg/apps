@@ -5,6 +5,7 @@
 //! yesterday drop out instead of being shown as now and today. They count from the phone's hour, not the watch's
 //! at the moment the answer came (`Model::base`): the two clocks can sit on either side of an hour or of midnight.
 
+use cmf_wp2_app::{Column, columns_record};
 use companion_rpc as rpc;
 use core::fmt::Write;
 
@@ -15,6 +16,12 @@ pub const DEG: &str = "";
 pub const PERIOD_MS: u32 = 15 * 60_000;
 /// While the phone waits for the user's "allow".
 pub const ASK_AGAIN_MS: u32 = 10_000;
+/// Columns of the widget card: now and the three hours after it.
+const COLUMNS: usize = 4;
+/// What a write answers when the watch can't draw the record (a stub before 9, a loader before 2026-11-21).
+const E_UNSUPPORTED: i32 = -22;
+/// And when NAND failed.
+const E_IO: i32 = -5;
 /// Hours asked for and shown.
 pub const ASK_HOURS: u8 = 12;
 pub const HOURS: usize = 24;
@@ -42,6 +49,8 @@ pub enum Got {
     Saved,
 }
 
+/// The order is a contract: a value is the index of its drawing in `widget-icons/` and of the icon in the card FMC
+/// Companion pushes (README.md next to `Cargo.toml`). Append only.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Icon {
     Clear,
@@ -157,7 +166,7 @@ pub fn deg(t10: i16) -> i16 {
 }
 
 /// A short text built in place; what doesn't fit is cut at a character.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Line {
     buf: [u8; 64],
     len: usize,
@@ -451,7 +460,7 @@ impl Model {
         (d.iter().map(|x| x.min).min().unwrap_or(0), d.iter().map(|x| x.max).max().unwrap_or(0))
     }
 
-    /// The widget card: title (≤ 23 bytes) and value (≤ 39 bytes, two lines).
+    /// The text card: title (≤ 23 bytes) and value (≤ 39 bytes, two lines).
     pub fn card(&self, wall: i32) -> (Line, Line) {
         let (mut t, mut v) = (Line::new(), Line::new());
         let place = rpc::utf8_cut(self.place.as_str().as_bytes(), 23);
@@ -465,6 +474,36 @@ impl Model {
             let _ = write!(v, "\nH {}{DEG} L {}{DEG}", d.max, d.min);
         }
         (t, v)
+    }
+
+    /// The columns card (stub 9): now and those of the next three hours that are known. `None` without the current
+    /// weather. FMC Companion pushes the same bytes for the same forecast and hour (README.md next to `Cargo.toml`).
+    /// The `°` is real here: the stub draws it, unlike the fonts an app gets ([`DEG`]).
+    pub fn columns(&self, wall: i32) -> Option<Record> {
+        let now = self.now?;
+        let mut cols = [(Line::new(), 0, Line::new()); COLUMNS];
+        let _ = cols[0].0.write_str("Now");
+        cols[0].1 = icon(now.code) as u8;
+        let _ = write!(cols[0].2, "{}°", deg(now.temp));
+        let mut n = 1;
+        // not `hour_at`: with the watch's clock behind the answer, that would show hours further ahead than three
+        let next = wall.div_euclid(60) + 1 - self.base();
+        for i in next..next + COLUMNS as i32 - 1 {
+            if !(0..self.data.nh as i32).contains(&i) {
+                continue;
+            }
+            let (h, (caption, pic, value)) = (self.data.hours[i as usize], &mut cols[n]);
+            let _ = write!(caption, "{:02}:00", hour_label(self.data.hour0, i as u8));
+            *pic = icon(h.code) as u8;
+            let _ = write!(value, "{}°", h.temp);
+            n += 1;
+        }
+        let cols: [Column; COLUMNS] = core::array::from_fn(|i| Column {
+            caption: cols[i].0.as_str(),
+            icon: Some(cols[i].1),
+            value: cols[i].2.as_str(),
+        });
+        columns_record(&cols[..n])
     }
 
     /// The cache blob; 0 before the first answer.
@@ -538,6 +577,48 @@ impl Model {
             return None;
         }
         Some((at, rpc::Text::new(place.as_bytes()), d))
+    }
+}
+
+/// A v2 widget record and its length.
+pub type Record = ([u8; 128], usize);
+
+#[derive(PartialEq, Eq)]
+pub enum Card {
+    Columns(Record),
+    Text(Line, Line),
+}
+
+/// What this run wrote to the card left of the face.
+pub struct Widget {
+    /// The watch refused columns: text for the rest of the run.
+    text_only: bool,
+    last: Option<Card>,
+}
+
+impl Widget {
+    pub const fn new() -> Self {
+        Widget { text_only: false, last: None }
+    }
+
+    /// Writes the card when it changed: columns, or the text card without weather or on a watch that can't draw them.
+    pub fn update(&mut self, m: &Model, wall: i32, mut write: impl FnMut(&Card) -> i32) {
+        let text = || {
+            let (t, v) = m.card(wall);
+            Card::Text(t, v)
+        };
+        let columns = if self.text_only { None } else { m.columns(wall) };
+        let mut card = columns.map_or_else(text, Card::Columns);
+        if self.last.as_ref() == Some(&card) {
+            return;
+        }
+        let mut rc = write(&card);
+        if rc == E_UNSUPPORTED && matches!(card, Card::Columns(_)) {
+            self.text_only = true;
+            card = text();
+            rc = write(&card);
+        }
+        self.last = (rc != E_IO).then_some(card);
     }
 }
 
