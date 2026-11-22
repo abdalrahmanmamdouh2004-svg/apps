@@ -18,7 +18,7 @@ pub const PERIOD_MS: u32 = 15 * 60_000;
 pub const ASK_AGAIN_MS: u32 = 10_000;
 /// Columns of the widget card: now and the three hours after it.
 const COLUMNS: usize = 4;
-/// What a write answers when the watch can't draw the record (a stub before 9, a loader before 2026-11-21).
+/// What a write answers when the watch can't draw the record (a stub before 10, a loader without templates).
 const E_UNSUPPORTED: i32 = -22;
 /// And when NAND failed.
 const E_IO: i32 = -5;
@@ -490,7 +490,7 @@ impl Model {
         (t, v)
     }
 
-    /// The columns card (stub 9): now and those of the next three hours that are known. `None` without the current
+    /// The columns card (stub 10): now and those of the next three hours that are known. `None` without the current
     /// weather. FMC Companion pushes the same bytes for the same forecast and hour (README.md next to `Cargo.toml`).
     /// The `°` is real here: the stub draws it, unlike the fonts an app gets ([`DEG`]).
     pub fn columns(&self, wall: i32) -> Option<Record> {

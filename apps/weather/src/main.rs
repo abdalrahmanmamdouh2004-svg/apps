@@ -3,7 +3,7 @@
 //! - The menu app is three pages in the stock pager (`screen::pages_view`): now, hours, days. The crown or a
 //!   swipe pages; the hours and days scroll first. BUTTON exits.
 //! - The page next to the watch face (`app_features!(PAGE)`) is the now screen alone (`screen::face_view`).
-//! - The card left of the face (`WIDGET`): from stub 9 now and the next three hours in columns with the app's own
+//! - The card left of the face (`WIDGET`): from stub 10 now and the next three hours in columns with the app's own
 //!   icons (`widget-icons/`, README.md), before that the place, the temperature with the condition, high and low;
 //!   written whenever it changes while the app runs, a new hour too.
 //!

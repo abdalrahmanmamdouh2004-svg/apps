@@ -4,7 +4,7 @@ The store's page is [`store.md`](store.md). This is the contract of the widget c
 (`src/model.rs`, `Model::columns`) and FMC Companion both write: the same forecast at the same hour gives the same
 bytes, so change both sides together.
 
-## The card (stub 9, loader of 2026-11-21)
+## The card (stub 10 and its loader)
 
 A v2 `columns` record (the SDK's `docs/widget-push.md`) of at most four columns: now, then the three hours after the
 one that contains now. Hours that aren't known give no column. Without the current weather the phone writes nothing

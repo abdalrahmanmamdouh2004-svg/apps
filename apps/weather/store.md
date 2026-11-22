@@ -6,7 +6,7 @@ The weather where your phone is, in three pages you turn with the crown or a swi
 
 Long-press **Weather** in Apps and choose **Add page** to keep the Now screen one swipe from the watch face, or
 **Add widget** for a card by the hour: now and the next three hours, each with its icon (a moon at night) and
-temperature. On patched firmware from before stub 9 the card shows the temperature, the condition and today's high
+temperature. On patched firmware from before stub 10 the card shows the temperature, the condition and today's high
 and low in text instead. The app brings the card up to date while it runs.
 
 The watch asks the phone when you open the app and every 15 minutes while it's shown, and keeps the last answer, so
@@ -21,5 +21,5 @@ you are.
 - A phone with **FMC Companion** (iOS or Android), paired with the watch. The hours need FMC Companion from
   2026-11-20 or later; with an older one the Hours page asks you to update it and the rest works.
 - The [patched firmware](/firmware) with the channel key (2026-11-13 or later) and the [App Loader](/firmware)
-  (2026-11-15 or later for the page and the widget). The card by the hour needs the patched firmware's stub 9 and
-  the App Loader of 2026-11-21 or later.
+  (2026-11-15 or later for the page and the widget). The card by the hour needs the patched firmware's stub 10 and
+  the App Loader that comes with it.
