@@ -362,10 +362,11 @@ fn at_night(mut recs: Vec<Vec<u8>>, which: std::ops::Range<usize>) -> Vec<Vec<u8
 /// What stub 9 draws from the record at `wall`: caption, icon, value. Its own parser, with Weather's ten icons.
 fn drawn(m: &Model, wall: i32) -> Vec<(std::string::String, Option<u8>, std::string::String)> {
     let Some((rec, n)) = m.columns(wall) else { return Vec::new() };
-    let Some(wp2_core::widget::Card::Columns(k)) = wp2_core::widget::card(&rec[..n], 10) else {
-        panic!("stub 9 would not draw {:?}", &rec[..n]);
-    };
-    rec[3..n].chunks_exact(21).take(k as usize).map(|c| (text(&c[..10]), Some(c[10]), text(&c[11..]))).collect()
+    // the loader's and the stub's own check; and every icon is one the package has
+    assert!(wp2_core::widget::accepts(&rec[..n], 9), "stub 9 would not draw {:?}", &rec[..n]);
+    let cols = rec[3..n].chunks_exact(21);
+    assert!(cols.clone().all(|c| c[10] < 10), "no such icon in the package");
+    cols.map(|c| (text(&c[..10]), Some(c[10]), text(&c[11..]))).collect()
 }
 
 fn text(b: &[u8]) -> std::string::String {
