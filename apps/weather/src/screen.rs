@@ -226,10 +226,8 @@ fn now_content(b: &mut Batch, flush: &mut Flush, parent: Obj, m: &Model, wall: i
     b.style(ring, Prop::BorderColor, 0, WHITE)?;
     b.style(ring, Prop::TranslateY, 0, 8)?;
     b.flags(ring, &[], &[Flag::Clickable, Flag::Scrollable])?;
-    // night for the icon: what the current hour says, when there are hours
-    let night = m.hour_at(0, wall).is_some_and(|(_, is_now, h)| is_now && h.night);
     room(b, flush)?;
-    icon(b, parent, model::icon(n.code), night, 0, NOW_Y + 98, 52)?;
+    icon(b, parent, model::icon(n.code), m.night_now(wall), 0, NOW_Y + 98, 52)?;
     room(b, flush)?;
     label(b, parent, model::condition(n.code), MSG_W, 0, NOW_Y + 158, 2)?;
     let mut y = NOW_Y + 204;

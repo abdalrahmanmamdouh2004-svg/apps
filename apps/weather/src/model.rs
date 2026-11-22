@@ -49,8 +49,8 @@ pub enum Got {
     Saved,
 }
 
-/// The order is a contract: a value is the index of its drawing in `widget-icons/` and of the icon in the card FMC
-/// Companion pushes (README.md next to `Cargo.toml`). Append only.
+/// The order is a contract: a value is the index of its drawing by day in `widget-icons/` and of the icon in the card
+/// FMC Companion pushes (README.md next to `Cargo.toml`). The night's drawings follow these ([`widget_icon`]).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Icon {
     Clear,
@@ -143,6 +143,15 @@ pub fn icon(code: u8) -> Icon {
         71..=77 | 85 | 86 => Icon::Snow,
         95..=99 => Icon::Storm,
         _ => Icon::Cloud,
+    }
+}
+
+/// The index in `widget-icons/`, append only: the conditions, then clear and partly cloudy at night.
+fn widget_icon(code: u8, night: bool) -> u8 {
+    match icon(code) {
+        Icon::Clear if night => 8,
+        Icon::Partly if night => 9,
+        i => i as u8,
     }
 }
 
@@ -429,6 +438,11 @@ impl Model {
         Some((hour_label(self.data.hour0, i as u8), is_now, self.data.hours[i]))
     }
 
+    /// Whether it is night now: what the hourly entry that contains now says, day without one.
+    pub fn night_now(&self, wall: i32) -> bool {
+        self.hour_at(0, wall).is_some_and(|(_, is_now, h)| is_now && h.night)
+    }
+
     /// `wall`'s day counted from the answer's.
     fn today_index(&self, wall: i32) -> i32 {
         wall.div_euclid(1440) - self.base().div_euclid(24)
@@ -483,7 +497,7 @@ impl Model {
         let now = self.now?;
         let mut cols = [(Line::new(), 0, Line::new()); COLUMNS];
         let _ = cols[0].0.write_str("Now");
-        cols[0].1 = icon(now.code) as u8;
+        cols[0].1 = widget_icon(now.code, self.night_now(wall));
         let _ = write!(cols[0].2, "{}°", deg(now.temp));
         let mut n = 1;
         // not `hour_at`: with the watch's clock behind the answer, that would show hours further ahead than three
@@ -494,7 +508,7 @@ impl Model {
             }
             let (h, (caption, pic, value)) = (self.data.hours[i as usize], &mut cols[n]);
             let _ = write!(caption, "{:02}:00", hour_label(self.data.hour0, i as u8));
-            *pic = icon(h.code) as u8;
+            *pic = widget_icon(h.code, h.night);
             let _ = write!(value, "{}°", h.temp);
             n += 1;
         }

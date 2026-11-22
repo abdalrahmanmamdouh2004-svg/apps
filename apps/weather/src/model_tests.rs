@@ -351,10 +351,18 @@ fn forecast(temp: i16, code: u8, first: u8, list: &[(i8, u8)]) -> Vec<Vec<u8>> {
     Vec::from([Vec::from([0, t[0], t[1], code, 5, 80, 0]), h])
 }
 
-/// What stub 9 draws from the record at `wall`: caption, icon, value. Its own parser, with Weather's eight icons.
+/// `recs` of [`forecast`] with the night bit in the hourly entries `which`.
+fn at_night(mut recs: Vec<Vec<u8>>, which: std::ops::Range<usize>) -> Vec<Vec<u8>> {
+    for i in which {
+        recs[1][2 + 3 * i + 2] |= 0x80;
+    }
+    recs
+}
+
+/// What stub 9 draws from the record at `wall`: caption, icon, value. Its own parser, with Weather's ten icons.
 fn drawn(m: &Model, wall: i32) -> Vec<(std::string::String, Option<u8>, std::string::String)> {
     let Some((rec, n)) = m.columns(wall) else { return Vec::new() };
-    let Some(wp2_core::widget::Card::Columns(k)) = wp2_core::widget::card(&rec[..n], 8) else {
+    let Some(wp2_core::widget::Card::Columns(k)) = wp2_core::widget::card(&rec[..n], 10) else {
         panic!("stub 9 would not draw {:?}", &rec[..n]);
     };
     rec[3..n].chunks_exact(21).take(k as usize).map(|c| (text(&c[..10]), Some(c[10]), text(&c[11..]))).collect()
@@ -387,6 +395,67 @@ fn columns_golden_bytes() {
     let (rec, n) = m.columns(now).expect("a card");
     let hex: std::string::String = rec[..n].iter().map(|b| std::format!("{b:02x}")).collect();
     assert_eq!((n, hex.as_str()), (87, golden));
+}
+
+#[test]
+fn columns_golden_bytes_at_night() {
+    // wp2apps.install.columns_record([("Now",8,"-3°"),("23:00",9,"-4°"),("00:00",2,"-5°"),("01:00",7,"0°")])
+    let golden = concat!(
+        "ff0104",
+        "4e6f7700000000000000", "08", "2d33c2b0000000000000",
+        "32333a30300000000000", "09", "2d34c2b0000000000000",
+        "30303a30300000000000", "02", "2d35c2b0000000000000",
+        "30313a30300000000000", "07", "30c2b000000000000000",
+    );
+    let now = at(20_777, 22, 20);
+    let recs = at_night(forecast(-34, 0, 22, &[(9, 45), (-4, 2), (-5, 3), (0, 95), (8, 0)]), 0..5);
+    let m = answered_at(&recs, "", now);
+    let (rec, n) = m.columns(now).expect("a card");
+    let hex: std::string::String = rec[..n].iter().map(|b| std::format!("{b:02x}")).collect();
+    assert_eq!((n, hex.as_str()), (87, golden));
+}
+
+fn pictures(m: &Model, wall: i32) -> Vec<Option<u8>> {
+    drawn(m, wall).into_iter().map(|c| c.1).collect()
+}
+
+#[test]
+fn night_turns_to_day_at_sunrise() {
+    // clear from 4 o'clock, night until 7
+    let m = answered_at(&at_night(forecast(0, 0, 4, &[(0, 0); 8]), 0..3), "", at(20_777, 4, 10));
+    assert_eq!(pictures(&m, at(20_777, 4, 10)), [Some(8), Some(8), Some(8), Some(0)]);
+    assert_eq!(pictures(&m, at(20_777, 6, 59)), [Some(8), Some(0), Some(0), Some(0)]);
+    assert_eq!(pictures(&m, at(20_777, 7, 0)), [Some(0); 4], "Now turns with the hour that contains it");
+}
+
+#[test]
+fn night_goes_on_over_midnight() {
+    let list = [(0, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)];
+    let m = answered_at(&at_night(forecast(0, 1, 22, &list), 1..6), "", at(20_777, 22, 30));
+    assert_eq!(pictures(&m, at(20_777, 22, 30)), [Some(1), Some(9), Some(9), Some(9)]);
+    assert_eq!(pictures(&m, at(20_778, 0, 0)), [Some(9); 4]);
+}
+
+#[test]
+fn now_is_day_without_an_hour_that_contains_it() {
+    let wall = at(20_777, 23, 59);
+    let m = answered_at(&at_night(forecast(0, 0, 0, &[(0, 0); 4]), 0..4), "", wall);
+    assert_eq!(pictures(&m, wall), [Some(0), Some(8), Some(8), Some(8)], "the phone's first hour is the next one");
+    assert_eq!(pictures(&m, wall + 5 * 60), [Some(0)], "the hours ran out");
+    assert_eq!(pictures(&answered(&[Vec::from([0, 0, 0, 0, 5, 80, 0])]), WALL), [Some(0)], "no hourly record");
+}
+
+#[test]
+fn night_survives_the_cache() {
+    let mut recs = at_night(forecast(0, 2, 18, &[(0, 2); 8]), 2..8);
+    recs[1][2 + 3 * 3 + 2] |= 100; // the bit shares its byte with the chance of rain
+    let m = answered_at(&recs, "", at(20_777, 18, 5));
+    let mut blob = [0u8; BLOB_MAX];
+    let n = m.save(&mut blob);
+    let mut back = Model::new();
+    assert!(back.load(&blob[..n]));
+    assert_eq!(pictures(&back, at(20_777, 19, 5)), [Some(1), Some(9), Some(9), Some(9)]);
+    assert_eq!(pictures(&back, at(20_777, 21, 5)), [Some(9); 4]);
 }
 
 #[test]
@@ -465,9 +534,16 @@ fn column_icons_follow_the_contract_for_every_code() {
             95..=99 => 7,
             _ => 2,
         };
-        let m = answered(&forecast(0, code, 13, &[(0, 0), (0, code)]));
-        let got: Vec<_> = drawn(&m, WALL).into_iter().map(|c| c.1).collect();
-        assert_eq!(got, [Some(want), Some(want)], "WMO {code}, Now and an hour");
+        let recs = forecast(0, code, 13, &[(0, 0), (0, code)]);
+        assert_eq!(pictures(&answered(&recs), WALL), [Some(want), Some(want)], "WMO {code}, Now and an hour");
+        // only clear and partly cloudy have a night's drawing
+        let dark = match want {
+            0 => 8,
+            1 => 9,
+            i => i,
+        };
+        let m = answered(&at_night(recs, 0..2));
+        assert_eq!(pictures(&m, WALL), [Some(dark), Some(dark)], "WMO {code} at night");
     }
 }
 
@@ -480,7 +556,7 @@ fn widget_icon_files_are_in_the_contracts_order() {
         .filter(|n| n.ends_with(".svg"))
         .collect();
     names.sort();
-    let want = ["clear", "partly", "cloud", "fog", "drizzle", "rain", "snow", "storm"];
+    let want = ["clear", "partly", "cloud", "fog", "drizzle", "rain", "snow", "storm", "clear-night", "partly-night"];
     let want: Vec<_> = want.iter().enumerate().map(|(i, n)| std::format!("{i:02}-{n}.svg")).collect();
     assert_eq!(names, want, "the package numbers the icons in file name order");
 }

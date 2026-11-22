@@ -5,8 +5,8 @@ The weather where your phone is, in three pages you turn with the crown or a swi
 - **Days**: the week ahead, each day with its low, its high and a bar that shows where they sit in the week.
 
 Long-press **Weather** in Apps and choose **Add page** to keep the Now screen one swipe from the watch face, or
-**Add widget** for a card by the hour: now and the next three hours, each with its icon and temperature. On patched
-firmware from before stub 9 the card shows the temperature, the condition and today's high and low in text instead.
+**Add widget** for a card by the hour: now and the next three hours, each with its icon (a moon at night)
+and temperature. On patched firmware from before stub 9 the card shows the temperature, the condition and today's high and low in text instead.
 The app brings the card up to date while it runs.
 
 The watch asks the phone when you open the app and every 15 minutes while it's shown, and keeps the last answer, so

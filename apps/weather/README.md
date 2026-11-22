@@ -14,7 +14,11 @@ and the watch keeps its text card; so does a watch that answers `-22` to the rec
 - Hours count from the forecast's own first hour and the phone's clock, never from a stale first entry.
 - Value: whole degrees C and `°` (U+00B0), no unit. Now is the current record's 0.1° rounded, halves away from zero,
   never `-0`; an hour is its entry's temperature.
-- Icon: the index of the condition, from the WMO code of the current record or of that hour. No night variants.
+- Icon: the index of the condition, from the WMO code of the current record or of that hour. At night index 0 becomes
+  8 and index 1 becomes 9; the other six have one drawing.
+- Night is bit 7 of an hourly entry's precip byte: that entry's for its column, and for Now that of the entry that
+  contains now, as on the Now page. No such entry means day. Nothing else says what is night (no sunrise of the
+  phone's or the watch's own), so both write the same bytes.
 
 | Index | `widget-icons/` | `model::Icon` | WMO codes |
 |---|---|---|---|
@@ -26,8 +30,12 @@ and the watch keeps its text card; so does a watch that answers `-22` to the rec
 | 5 | `05-rain.svg` | `Rain` | 61-67, 80-82 |
 | 6 | `06-snow.svg` | `Snow` | 71-77, 85, 86 |
 | 7 | `07-storm.svg` | `Storm` | 95-99 |
+| 8 | `08-clear-night.svg` | `Clear` at night | 0 |
+| 9 | `09-partly-night.svg` | `Partly` at night | 1, 2 |
 
 The index is the file's place in name order and is stored on watches and sent by phones: append, never reorder.
 
-Test vector (87 bytes, `src/model_tests.rs`, `columns_golden_bytes`):
-`wp2apps.install.columns_record([("Now",6,"-3°"),("23:00",2,"-4°"),("00:00",0,"-5°"),("01:00",7,"0°")])`.
+Test vectors (87 bytes each, `src/model_tests.rs`, `columns_golden_bytes` and `columns_golden_bytes_at_night`):
+
+- `wp2apps.install.columns_record([("Now",6,"-3°"),("23:00",2,"-4°"),("00:00",0,"-5°"),("01:00",7,"0°")])`
+- `wp2apps.install.columns_record([("Now",8,"-3°"),("23:00",9,"-4°"),("00:00",2,"-5°"),("01:00",7,"0°")])`
