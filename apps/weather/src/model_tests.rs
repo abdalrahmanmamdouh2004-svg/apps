@@ -611,3 +611,26 @@ fn a_failed_write_is_written_again_and_is_no_reason_for_text() {
     assert_eq!(writes(&mut w, &m, WALL, 0), [(true, "".into())]);
     assert_eq!(writes(&mut w, &m, WALL, 0), []);
 }
+
+#[test]
+fn stub_9_refuses_the_card_and_stub_10_takes_it() {
+    // what the loader asks before it writes (op 0x14): stub 9 is the watch face guard, without templates
+    let m = answered(&week());
+    let (rec, n) = m.columns(WALL).unwrap();
+    assert!(wp2_core::widget::accepts(&rec[..n], 10));
+    for stub in [8, 9] {
+        assert!(!wp2_core::widget::accepts(&rec[..n], stub), "stub {stub}");
+    }
+    // so the app gets -22 there and writes the text card, which every stub takes
+    let mut w = Widget::new();
+    let mut written = Vec::new();
+    w.update(&m, WALL, |card| {
+        let rec = match card {
+            Card::Columns((r, n)) => r[..*n].to_vec(),
+            Card::Text(t, v) => cmf_wp2_app::widget_record(t.as_str(), v.as_str())[4..].to_vec(),
+        };
+        written.push(rec.len());
+        if wp2_core::widget::accepts(&rec, 9) { 0 } else { -22 }
+    });
+    assert_eq!(written, [87, 64]);
+}
