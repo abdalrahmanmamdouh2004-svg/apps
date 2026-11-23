@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <!-- moon and cloud are one colour: the moon stops short of the cloud -->
+  <mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="40" height="40">
+    <rect width="40" height="40" fill="#FFF"/>
+    <path d="M6.5 38.5a5.3 5.3 0 0 1-.6-10.56A7.6 7.6 0 0 1 20.2 26.4A6.2 6.2 0 0 1 22.8 38.5z" fill="#000" stroke="#000" stroke-width="3.6"/>
+  </mask>
+  <path d="M24.6 1.2A12 12 0 1 0 39 15.6A9.9 9.9 0 0 1 24.6 1.2z" fill="#E5E5EA" mask="url(#m)"/>
+  <path d="M6.5 38.5a5.3 5.3 0 0 1-.6-10.56A7.6 7.6 0 0 1 20.2 26.4A6.2 6.2 0 0 1 22.8 38.5z" fill="#E5E5EA"/>
+</svg>
