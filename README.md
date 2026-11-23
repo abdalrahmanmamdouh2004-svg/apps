@@ -42,6 +42,8 @@ channel, budgets. The apps here are worked examples of it.
   change later.
 - `icon.svg` (96×96 viewBox) is the watch menu's icon and, rendered at 288 px, the store's. Images it references are
   resolved next to it. Style: [docs/app-icons.md](https://github.com/cmf-tech-community/cmf-watch-sdk/blob/main/docs/app-icons.md).
+- `widget-icons/NN-name.svg` (40×40 viewBox, optional, at most 16) are the icons of a columns widget card (patched
+  firmware stub 10); the build packs them behind the app, and their order in the file name is the index the app uses.
 - Use the system font and the stock look, not LVGL's defaults.
 
 ### In the emulator or on a watch
