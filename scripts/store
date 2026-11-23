@@ -10,7 +10,8 @@ which fetches the pinned SDK first and puts llvm-objcopy on PATH.
                                   missed goes out with the next one
   scripts/store check [NAME...]   validate the listings (all without NAME)
   scripts/store build NAME...     check, then build target/<name>.wp2app with the pinned wp2-apps tooling;
-                                  icon.svg -> target/<name>-icon.png, the store's icon
+                                  icon.svg -> target/<name>-icon.png, the store's icon; widget-icons/*.svg ->
+                                  the package's widget icons (40x40, index = file name order)
   scripts/store publish NAME...   send target/<name>.wp2app, -icon.png + the listing to the store
                                   (STORE_URL, STORE_PUBLISH_TOKEN; --dry-run: the store
                                   validates and answers what would change, saves nothing)
@@ -19,6 +20,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -178,8 +180,16 @@ def build(name):
     subprocess.run(["llvm-objcopy", "-O", "binary", "--set-section-flags", ".data=alloc,load,contents",
                     elf, TARGET / f"{name}.bin"], check=True)
     (TARGET / f"{name}.wp2app").unlink(missing_ok=True)
+    pack_icons = []
+    if widget_svgs := sorted((APPS / name / "widget-icons").glob("*.svg")):
+        out = TARGET / "widget-icons" / name
+        shutil.rmtree(out, ignore_errors=True)  # pack takes every PNG there: none of an icon since removed
+        out.mkdir(parents=True)
+        for one in widget_svgs:
+            subprocess.run(["resvg", "-w", "40", "-h", "40", one, out / f"{one.stem}.png"], check=True)
+        pack_icons = ["--widget-icons", out]
     wp2apps("pack", TARGET / f"{name}.bin", "--elf", elf, "--name", name, "--version", build_number(meta["version"]),
-            "--output", TARGET / f"{name}.wp2app")
+            "--output", TARGET / f"{name}.wp2app", *pack_icons)
     wp2apps("info", TARGET / f"{name}.wp2app")
     if svg.exists():  # the store's icon; an icon.svg may pull in images by relative path
         subprocess.run(["resvg", "-w", "288", "-h", "288", svg, TARGET / f"{name}-icon.png"], check=True)

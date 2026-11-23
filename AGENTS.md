@@ -38,6 +38,7 @@ One package can offer several of these; ask which the owner wants before buildin
 |---|---|---|
 | Menu app | the default: a row in Apps, `main` runs until `BUTTON` | any |
 | Widget card | `app_features!(WIDGET)`; `api.widget(title, value)` stores text (23 B / 39 B, `\n` = 2nd line) the stub draws on a 344×166 card left of the face. A NAND write: on change, never per frame. A tap opens the app | 2026-11-15 |
+| Columns card | the same tile in the layout of the stock weather-by-hour card: `api.widget_columns(&[Column])`, 1-4 columns of caption, icon, value (text ≤ 9 B). Icons: `widget-icons/NN-name.svg` (40×40, ≤ 16, index = file name order), packed by `make build`. `-22` = this watch can't: write `api.widget` instead and don't retry per tick. `app-guide.md`, "Columns card" | stub 10 and its loader (merged, not yet released) |
 | Page | `app_features!(PAGE)`: the app is a whole screen next to the face. `api.on_page()` is `true` there; no `BUTTON` (the app never exits itself), swipe away = `PAUSE`, back = `RESUME` | 2026-11-15 |
 | Phone or Mac link | `send`/`recv`, `MESSAGE`: section "Apps that talk to a phone" below | 2026-11-13 for K |
 | Phone services | calendar, reminders, location, weather, HTTP, notifications, media, a notification on the phone, storage, background jobs, from FMC Companion over `R1` messages (`crates/companion-rpc`): "FMC Companion" below | 2026-11-13 for K |
@@ -55,7 +56,7 @@ make build APP=my-app    # target/my-app.wp2app
 make check               # store.toml / store.md
 ```
 
-- **The simulator has no LVGL** (`lv_submit` returns `-95`), no widget card and no page (`on_page()` is `false`). An
+- **The simulator has no LVGL** (`lv_submit` returns `-95`), no widget card of either kind and no page (`on_page()` is `false`). An
   LVGL app is tested by host tests of its batch builder (each batch validates against the loader's checker) and in
   the emulator. Pick canvas (`cmf-wp2-ui`) when the simulator matters more than stock widgets: `app-guide.md`,
   "LVGL or `cmf-wp2-ui`?".
@@ -177,6 +178,11 @@ How it works and what it can't do:
 
 **What needs a newer watch.** Patched firmware **stub 8** (published 2026-11-19 as `1.0.0.73-wp2.11`, by OTA) with the
 loader of 2026-11-19 brings 16 app slots instead of 8 and `PUSH`, which `job.set` needs to refresh a widget or start
-blob in the background; on an older stub the phone runs the job and drops the result. The SDK pin here predates
-both (`git -C .sdk/wp2-apps log HEAD..origin/main`). The order of apps in the Apps menu is the user's, set in FMC
-Companion; an app can't change it.
+blob in the background; on an older stub the phone runs the job and drops the result. The order of apps in the Apps
+menu is the user's, set in FMC Companion; an app can't change it.
+
+**Stub 10** with its loader (cmf-watch-sdk #23, merged, no loader release yet) draws v2 widget records (the columns card), takes
+them by `PUSH` too, and accepts a package with a widget icon trailer (`docs/app-icons.md` in the SDK). Stub 9, the one
+watches run now, is the watch face bootloop guard and has none of it: it refuses a package with the trailer at `END`
+and v2 records. A host installing on a stub below 10 must cut the trailer off; anything that checks a package for its
+exact header length (a store, an installer) refuses one with a trailer until it learns it.

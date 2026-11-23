@@ -26,6 +26,8 @@ Ask, don't guess. A package can mix them (`app-guide.md` section 3, "Widget" and
 - **Widget card** (`WIDGET`): two lines of text on a stock card left of the face. Good for "next thing / count /
   last value". `api.widget(title, value)`: title ≤ 23 B, value ≤ 39 B with one `\n`. Writes NAND: call it when the
   value changes and at start, never per frame. The card shows the new text the next time the face is shown.
+  From stub 10 it can instead be up to four columns of caption, own icon and value (`api.widget_columns`,
+  `widget-icons/NN-name.svg`; `app-guide.md`, "Columns card"): always keep the text card as the `-22` fallback.
 - **Page** (`PAGE`): a full screen next to the face ("full-screen widget"). Branch on `api.on_page()` for a compact
   view. No `BUTTON` there, so the loop never returns on its own; `PAUSE` on swipe away, `RESUME` on return: draw
   nothing and run no motor in between, redraw time-dependent parts on `RESUME`.
