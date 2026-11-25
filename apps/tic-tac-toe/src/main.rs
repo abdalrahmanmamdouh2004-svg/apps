@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
+#[cfg(not(test))]
 cmf_wp2_app::app_icon!();
+
 
 use cmf_wp2_app::{Api, BUTTON, CROWN, TOUCH_DOWN};
 
