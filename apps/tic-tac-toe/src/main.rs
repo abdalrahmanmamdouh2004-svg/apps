@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #[cfg(not(test))]
+#[cfg(not(test))]
 cmf_wp2_app::app_icon!();
 
 
