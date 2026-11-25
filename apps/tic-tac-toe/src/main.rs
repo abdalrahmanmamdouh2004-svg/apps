@@ -1,13 +1,16 @@
-#![no_std]
-#![no_main]
-#[cfg(not(test))]
+#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(test), no_main)]
+
 #[cfg(not(test))]
 cmf_wp2_app::app_icon!();
 
-
 use cmf_wp2_app::{Api, BUTTON, CROWN, TOUCH_DOWN};
 
+#[cfg(not(test))]
 cmf_wp2_app::entry!(main);
+#[cfg(not(test))]
+cmf_wp2_app::app_features!(cmf_wp2_app::WIDGET | cmf_wp2_app::PAGE);
+
 cmf_wp2_app::app_features!(cmf_wp2_app::WIDGET | cmf_wp2_app::PAGE);
 
 const BG_COLOR: u16 = 0x0000;
