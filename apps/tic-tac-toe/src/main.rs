@@ -11,8 +11,6 @@ cmf_wp2_app::entry!(main);
 #[cfg(not(test))]
 cmf_wp2_app::app_features!(cmf_wp2_app::WIDGET | cmf_wp2_app::PAGE);
 
-cmf_wp2_app::app_features!(cmf_wp2_app::WIDGET | cmf_wp2_app::PAGE);
-
 const BG_COLOR: u16 = 0x0000;
 const GRID_DOT_COLOR: u16 = 0x52AA;
 const BEZEL_DOT_COLOR: u16 = 0x2945;
