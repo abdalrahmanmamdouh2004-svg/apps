@@ -9,8 +9,6 @@
 
 ## Player
 
-- **Animated album-colour background.** The cover's colours glow behind the player and the light slowly drifts, so
-  the screen feels alive without draining the watch.
 - **Heart to save a song.** Tap the heart to save what is playing, from any app. It turns red whenever a saved song
   comes on, and a second tap unsaves it.
 - **Double-tap to skip 5 seconds.** Double-tap the left side of the player to jump back 5 seconds, or the right side to
@@ -36,5 +34,4 @@ Copy the podcast's link (Spotify, Apple Podcasts, a YouTube Music playlist, or i
   Open it once and grant the notification access it asks for, so it can see what is playing.
 - The watch connected to your phone through Watch Menu 2, over the same Bluetooth link as Nothing X.
 - The [patched firmware](/firmware) with the channel key and the [App Loader](/firmware)
-  (ABI 1.3 or newer).
 - Android 7.0 or newer.
